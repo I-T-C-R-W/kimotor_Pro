@@ -414,75 +414,55 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             )
             print(traceback.format_exc())
 
-    def coil_tracker(self, mpt, layer, n_loops, group, is_first_layer=False, is_last_layer=False, is_ccw=False):
-        """ 
-        Zeichnet die Spule. 
-        Trennt die lästigen "Stummel" ab, sodass die Spule an den äußeren Ecken endet.
+    def coil_tracker(self, mpt, layer, n_loops, group, drop_inner_stub=False):
         """
-        ip = 0 
+        Zeichnet eine Spule. Auf Außenlagen kann der innere Stummel entfernt werden,
+        damit die Coil-Endpunkte definierte Ecken für das Routing bilden.
+        """
+        nseg = n_loops * 4 - 1
+        ip = 0
+
+        if drop_inner_stub:
+            ip = 2
+            start_seg = 1
+            cs = self.fpoint(int(mpt[2][0,0]), int(mpt[2][0,1]))
+        else:
+            start_seg = 0
+            cs = self.fpoint(int(mpt[0][0,0]), int(mpt[0][0,1]))
+
         t0 = None
-        nseg = n_loops*4 - 1 
+        for seg in range(start_seg, nseg):
+            ps = self.fpoint(int(mpt[ip][0,0]), int(mpt[ip][0,1]))
 
-        # Bestimmen, welcher Abschnitt weggelassen wird, damit die Spule an der Ecke stoppt!
-        skip_seg = -1
-        if is_first_layer and not is_ccw: 
-            skip_seg = 0
-        if is_last_layer and is_ccw: 
-            skip_seg = nseg - 1
-        if is_last_layer and not is_ccw: 
-            skip_seg = nseg - 1
-            
-        actual_start = None
-        actual_end = None
-
-        for seg in range(nseg):
-            ps = self.fpoint( int(mpt[ip][0,0]), int(mpt[ip][0,1]) )
-            
-            is_arc = (not seg%2)
-            if is_arc:
+            if not seg % 2:
                 ip += 1
-                mid_pt = self.fpoint(int(mpt[ip][0,0]), int(mpt[ip][0,1]))
-                side = -1 if not seg%4 else 1
-            
-            ip += 1
-            pe = self.fpoint( int(mpt[ip][0,0]), int(mpt[ip][0,1]) )
-
-            # Den Stummel überspringen (nicht zeichnen!)
-            if seg == skip_seg:
-                if skip_seg == 0:
-                    actual_start = pe  # Start rückt auf die physikalische Ecke!
-                if skip_seg == nseg - 1:
-                    actual_end = ps    # Ende rückt auf die physikalische Ecke!
-                continue
-
-            if actual_start is None and seg == 0:
-                actual_start = ps
-            if actual_end is None and seg == nseg - 1:
-                actual_end = pe
-
-            if is_arc:
                 t = pcbnew.PCB_ARC(self.board)
-                t.SetMid(mid_pt)
+                t.SetMid(self.fpoint(int(mpt[ip][0,0]), int(mpt[ip][0,1])))
+                side = -1 if not seg % 4 else 1
             else:
                 t = pcbnew.PCB_TRACK(self.board)
 
-            t.SetWidth( self.trk_w )
-            t.SetLayer( layer )
-            t.SetStart( ps )
-            t.SetEnd( pe )
+            ip += 1
+            pe = self.fpoint(int(mpt[ip][0,0]), int(mpt[ip][0,1]))
+
+            t.SetWidth(self.trk_w)
+            t.SetLayer(layer)
+            t.SetStart(ps)
+            t.SetEnd(pe)
             self.board.Add(t)
-            
+
             net_coil = self.board.FindNet("coil")
             if net_coil:
                 t.SetNet(net_coil)
 
-            if t0 is not None and self.r_fill > 0:
-                fa = self.fillet(self.board, t0, t, self.r_fill, side)
-                
+            if seg > start_seg and self.r_fill > 0:
+                self.fillet(self.board, t0, t, self.r_fill, side)
+
             group.AddItem(t)
             t0 = t
-            
-        return [actual_start, actual_end]
+
+        ce = self.fpoint(int(mpt[ip][0,0]), int(mpt[ip][0,1]))
+        return [cs, ce]
 
     def do_coils(self, ri, ro, n_slots, n_loops=1, lset=None, mode=0):
         th0 = 2*math.pi/n_slots
@@ -512,11 +492,12 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
             for idx, layer in enumerate(lset):
                 is_first = (idx == 0)
-                is_last = (idx == len(lset)-1)
+                is_last = (idx == len(lset) - 1)
                 is_ccw = (idx % 2 != 0)
-                
+                drop_stub = (is_first or is_last)
+
                 if is_ccw:
-                    ct = self.coil_tracker(Tccw, layer, n_loops, pgroup, is_first, is_last, is_ccw)
+                    ct = self.coil_tracker(Tccw, layer, n_loops, pgroup, drop_inner_stub=drop_stub)
                     via = pcbnew.PCB_VIA(self.board)
                     if len(lset)==2:
                         via.SetViaType(pcbnew.VIATYPE_THROUGH)
@@ -529,7 +510,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     if net_coil: via.SetNet(net_coil)
                     self.board.Add(via)
                 else:
-                    ct = self.coil_tracker(Tcw, layer, n_loops, pgroup, is_first, is_last, is_ccw)
+                    ct = self.coil_tracker(Tcw, layer, n_loops, pgroup, drop_inner_stub=drop_stub)
                     if len(lset)>2 and idx:
                         via = pcbnew.PCB_VIA(self.board)
                         via.SetViaType(pcbnew.VIATYPE_BLIND_BURIED)
@@ -540,12 +521,11 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                         if net_coil: via.SetNet(net_coil)
                         self.board.Add(via)
 
-                if is_first:
-                    coil_se_start = ct[0] # Exakte Ecke!
-                if is_last:
-                    coil_se_end = ct[1]   # Exakte Ecke!
-   
-            coil_se = [coil_se_start, coil_se_end]
+                if drop_stub:
+                    coil_se.append(ct[0])
+
+            if len(coil_se) < 2:
+                coil_se = [coil_se[0], coil_se[0]] if coil_se else [self.fpoint(0, 0), self.fpoint(0, 0)]
             coil_p[ p%self.phases ].append(coil_se)
 
         return coil_p
