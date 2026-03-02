@@ -687,6 +687,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 self.board.Add(arc)
 
         # 4. STERNSCHALTUNG (nur für 3-Phasen Motoren)
+        neutral_tap = None
         if phases > 1:
             star_radius = lowest_used_radius - self.ring_dr
             lowest_used_radius = star_radius
@@ -714,6 +715,8 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 self.add_through_via(via_pt, net_coil)
 
             star_pts.sort(key=lambda x: x[0])
+            if star_pts:
+                neutral_tap = star_pts[0][1]
             for i in range(len(star_pts) - 1):
                 th1, pt1 = star_pts[i]
                 th2, pt2 = star_pts[i+1]
@@ -743,7 +746,14 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 else:
                     c_start = coils[0][-1][1]
             else:
-                c_start = coils[p][0][0]
+                if p < phases:
+                    # Terminals for A/B/C are spread over the circumference instead of being adjacent.
+                    n_phase_coils = len(coils[p])
+                    idx = int((p * n_phase_coils) / phases) % max(n_phase_coils, 1)
+                    c_start = coils[p][idx][0]
+                else:
+                    # 3P+N: optional 4th terminal taps the star/neutral point.
+                    c_start = neutral_tap if neutral_tap is not None else coils[0][-1][1]
 
             # Via an die Anschlussecke
             self.add_through_via(c_start, net_coil)
