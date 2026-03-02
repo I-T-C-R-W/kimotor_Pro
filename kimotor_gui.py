@@ -448,6 +448,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_cbSupportViaMode = wx.ComboBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"2", wx.DefaultPosition, wx.Size( 150,20 ), m_cbSupportViaModeChoices, wx.CB_DROPDOWN|wx.CB_READONLY, wx.DefaultValidator, u"m_cbSupportViaMode" )
 		self.m_cbSupportViaMode.SetSelection( 1 )
 		bSizerSupportVia.Add( self.m_cbSupportViaMode, 0, wx.ALL, 5 )
+		self.m_cbSupportVias = self.m_cbSupportViaMode
 
 		sbSizer1.Add( bSizerSupportVia, 1, wx.EXPAND, 5 )
 
@@ -471,6 +472,7 @@ class KiMotorGUI ( wx.Frame ):
 
 		self.m_cbFillInnerGND = wx.CheckBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Fill inner area with GND", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"m_cbFillInnerGND" )
 		self.m_cbFillInnerGND.SetValue( True ) 
+		self.m_chkFillInnerGnd = self.m_cbFillInnerGND
 		sbSizer1.Add( self.m_cbFillInnerGND, 0, wx.ALL, 5 )
 
 		bSizer271 = wx.BoxSizer( wx.HORIZONTAL )
@@ -656,6 +658,9 @@ class KiMotorGUI ( wx.Frame ):
 		self.lbl_status = wx.StaticText( sbSizerStatus.GetStaticBox(), wx.ID_ANY, u"Ready", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_status" )
 		self.lbl_status.Wrap( -1 )
 		sbSizerStatus.Add( self.lbl_status, 0, wx.ALL, 5 )
+
+		self.m_txtStatus = wx.TextCtrl( sbSizerStatus.GetStaticBox(), wx.ID_ANY, u"Ready.", wx.DefaultPosition, wx.Size( -1,60 ), wx.TE_MULTILINE|wx.TE_READONLY|wx.BORDER_SIMPLE, wx.DefaultValidator, u"m_txtStatus" )
+		sbSizerStatus.Add( self.m_txtStatus, 1, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 5 )
 
 		bSizer5.Add( sbSizerStatus, 0, wx.EXPAND|wx.TOP, 8 )
 
