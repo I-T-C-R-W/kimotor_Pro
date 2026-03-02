@@ -1,4 +1,4 @@
-# Copyright 2022-2024 Stefano Cottafavi <stefano.cottafavi@gmail.com>
+ # Copyright 2022 Stefano Cottafavi <stefano.cottafavi@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
 
 import os
@@ -23,65 +23,34 @@ else:
 
 class KiMotor(pcbnew.ActionPlugin):
     def defaults(self):
-        self.version = ""
-        self.metadata_file = os.path.join(os.path.dirname(__file__), 'metadata.json')
-        with open(self.metadata_file, 'r') as f:
-            data = json.load(f)
-            self.version = data['versions'][0]['version']
-
         self.name = "KiMotor"
         self.category = "Modify Drawing PCB"
         self.description = "KiMotor - Parametric PCB motor design"
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), 'kimotor_24x24.png')
     def Run( self ):
-        # grab editor frame and board
         self.frame = wx.FindWindowByName("PcbFrame")
         self.board = pcbnew.GetBoard()
         dlg = KiMotorDialog(self.frame, self.board)
         dlg.SetIcon( wx.Icon(self.icon_file_name) )
-        dlg.SetTitle( self.name+" v"+self.version )
         dlg.Show()
 
 class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
     group = None
-
-    # updated during init (0: not valid)
     SCALE = 0
     KICAD_VERSION = 0
 
     tl = 0
     tr = 0
 
-    # parameters
     outline = None
     trmtype = None
-
     fpoint = None
     angle = None
 
     tthick = 35e-6 # [m] copper thickness (1oz layer specs)
 
-    # fab capabilities (min)
-    rules = None
-
-    rules_preset_jlcpcb12 = {
-        "track_width":  0.127, # (5mil)
-        "track_space":  0.127, # (5mil)
-        "via_hole":     0.3,
-        "via_diameter": 0.5,
-    } 
-
-    rules_preset_jlcpcb4 = {
-        "track_width":  0.09, # (3.5mil)
-        "track_space":  0.09, # (3.5mil)
-        "via_hole":     0.15,
-        "via_diameter": 0.25,
-    } 
-
-
-    # terminal footprint dict
     term_tht_db = {
         "0.1"   : "SolderWire-0.1sqmm_1x01_D0.4mm_OD1mm",
         "0.15"  : "SolderWire-0.15sqmm_1x01_D0.5mm_OD1.5mm",
@@ -133,7 +102,6 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             self.fpoint_vector = pcbnew.VECTOR_VECTOR2I
             self.fsize = pcbnew.VECTOR2I
 
-        # kick-off persistence
         self.pf = os.path.join(
             pcbnew.SETTINGS_MANAGER.GetUserSettingsPath(),
             "kimotor.cfg"
@@ -142,7 +110,6 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         self.init_persist(self.pf)
         self.init_path()
         self.init_nets()
-
         self.on_cb_outline(None)
         self.on_cb_trmtype(None)
     
@@ -152,49 +119,12 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         else:
             return pcbnew.EDA_ANGLE(angle, pcbnew.RADIANS_T)
 
-    # init functions
     def init_persist(self, configFile):
         self.pm = PM.PersistenceManager.Get()
         self.pm.SetPersistenceFile(configFile)
         self.pm.RegisterAndRestoreAll(self)
 
-    def get_parameters(self, rules=None):
-
-        specs = self.m_cbPreset.GetStringSelection()
-        if specs=="DRC Rules":
-            self.rules = self.board.GetDesignSettings()
-            self.min_clear = self.rules.m_MinClearance
-
-            self.trk_w = self.rules.m_TrackMinWidth
-            self.vmaw = self.rules.m_ViasMinAnnularWidth
-
-            self.d_drill = self.rules.m_MinThroughDrill
-            self.d_via = max(self.rules.m_ViasMinSize, self.d_drill + 2*self.vmaw)
-
-        elif specs=="Current T/V":
-            self.rules = self.board.GetDesignSettings()
-            self.min_clear = self.rules.m_MinClearance
-            self.vmaw = self.rules.m_ViasMinAnnularWidth
-
-            self.trk_w = self.rules.GetCurrentTrackWidth()
-            self.d_drill = self.rules.GetCurrentViaDrill()
-            self.d_via = self.rules.GetCurrentViaSize()
-            aw = (self.d_via-self.d_drill)/2
-
-            if aw < self.vmaw:
-                wx.LogError(f'Via annular width is smaller than min allowed by DRC ({pcbnew.ToMM(aw)} < {pcbnew.ToMM(self.vmaw)})')
-                return -1
-
-        else:
-            wx.LogError('Invalid PCB preset!')
-            return -1
-
-        # helpers
-        self.dr = self.trk_w + self.min_clear
-        self.dt = self.d_via + self.min_clear
-
-        # get gui values and fix units (mm converted to nm where needed)
-
+    def get_parameters(self):
         self.outline = self.m_cbOutline.GetStringSelection()
         if self.outline=="Circle":
             self.n_edges = 0
@@ -207,38 +137,41 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         else:
             self.n_edges = -1
 
-        # terminals
         self.trmtype = self.m_cbTP.GetStringSelection()
-        self.n_term = 3 #2 if (self.m_cbScheme.GetStringSelection() == "1P") else ( 
-            #3 if (self.m_cbScheme.GetStringSelection() == "3P") else 4)
+        self.n_term = 2 if (self.m_cbScheme.GetStringSelection() == "1P") else ( 
+            3 if (self.m_cbScheme.GetStringSelection() == "3P") else 4)
         
         self.n_layers = int(self.m_ctrlLayers.GetValue())
         self.lset = self.udpate_lset(self.n_layers)
         self.n_loops  = int(self.m_ctrlLoops.GetValue())
-        self.n_phases = int(1 if (self.m_cbScheme.GetStringSelection() == "1P") else 3)
+        self.phases = int(1 if (self.m_cbScheme.GetStringSelection() == "1P") else 3)
         self.n_slots  = int(self.m_ctrlSlots.GetValue())
         
         self.strategy = self.m_cbStrategy.GetSelection()
 
+        self.trk_w = int(self.m_ctrlTrackWidth.GetValue() * self.SCALE) 
+        self.trk_space = int(self.m_ctrlTrackSpacing.GetValue() * self.SCALE) 
+        self.dr = self.trk_w + self.trk_space
+        
+        self.ring_w = int(self.m_ctrlRingWidth.GetValue() * self.SCALE)
+        self.ring_space = int(self.m_ctrlRingSpacing.GetValue() * self.SCALE)
+        self.ring_dr = self.ring_w + self.ring_space
 
-        # TODO: this to become a parameter (e.g. via grid size or something)
+        self.d_via = int(self.m_ctrlViaDia.GetValue() * self.SCALE)   
+        self.d_drill = int(self.m_ctrlViaDrill.GetValue() * self.SCALE) 
+
         self.via_rows = 2
 
-        self.r_fill = int(self.m_ctrlRfill.GetValue() * self.SCALE)         # track fillet
-        self.o_fill = int(self.m_ctrlFilletRadius.GetValue() * self.SCALE)  # outline fillet
+        self.r_fill = int(self.m_ctrlRfill.GetValue() * self.SCALE)         
+        self.o_fill = int(self.m_ctrlFilletRadius.GetValue() * self.SCALE)  
 
-        # various radius 
         self.r_in = int(self.m_ctrlDbore.GetValue() /2 * self.SCALE)
-        self.r_out = int(self.m_ctrlDout.GetValue() /2 * self.SCALE) # board size
+        self.r_out = int(self.m_ctrlDout.GetValue() /2 * self.SCALE) 
         self.r_coil_in = int(self.m_ctrlDin.GetValue() /2 * self.SCALE )
         self.r_coil_out = int(self.m_ctrlDend.GetValue() /2 * self.SCALE )
         
-        self.w_mnt = int(self.m_ctrlWmnt.GetValue() * self.SCALE) # width of the outer no-soldermask annular zone
-
-        # TODO: place terminals based on their size
-        #self.rtrm = int(self.m_ctrlDterm.GetValue()/2 * self.SCALE)
-        self.r_term = (self.r_coil_out + (self.r_coil_out + self.w_mnt)) / 2
-
+        self.w_mnt = int(self.m_ctrlWmnt.GetValue() * self.SCALE) 
+        self.term_offset = int(self.m_ctrlDterm.GetValue() * self.SCALE)
         
         self.mhs = self.m_cbMountSize.GetStringSelection()
         self.n_mh_out = int(self.m_mhOut.GetValue())
@@ -246,21 +179,14 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         self.n_mh_in = int(self.m_mhIn.GetValue())
         self.r_mh_in = int(self.m_mhInR.GetValue() /2 * self.SCALE)
 
-        # text
         self.txt_size = int(0.5 * self.SCALE)
         self.txt_loc = int(self.r_out - 3*self.txt_size)
 
-        # init buttons state
         if self.group:
             self.btn_clear.Enable(True)
 
-        return 0
-
     def init_path(self):
-
         self.fp_path = None
-
-        # check modified paths
         settings = pcbnew.SETTINGS_MANAGER.GetUserSettingsPath()
         try:
             with open(settings+'/kicad_common.json', 'r') as f:
@@ -268,30 +194,30 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 if not (data["environment"]["vars"] is None) and "KICAD6_FOOTPRINT_DIR" in data["environment"]["vars"]:
                     self.fp_path = data["environment"]["vars"]["KICAD6_FOOTPRINT_DIR"]
         except IOError:
-            # catch missing file on first Kicad run
-            wx.LogError("Settings file not found. This might happen, the first time you run the program. Please restart Kicad")
+            wx.LogError("Settings file not found.")
             return
 
-        # check default paths
         if self.fp_path is None:
             self.fp_path = os.getenv("KICAD"+str(self.KICAD_VERSION)+"_FOOTPRINT_DIR", default=None)
 
-        # ensure only one separator
-        self.fp_path = os.path.normpath(self.fp_path) + os.sep
-
-        # no library found
-        if self.fp_path is None:
-            wx.LogError("Footprint library not found - Make sure the KiCad paths are properly configured.")
+        if self.fp_path is not None:
+            self.fp_path = os.path.normpath(self.fp_path) + os.sep
+        else:
+            wx.LogError("Footprint library not found.")
 
     def init_nets(self):
-        # init paths
-        gnd = pcbnew.NETINFO_ITEM(self.board, "gnd")
-        coil = pcbnew.NETINFO_ITEM(self.board, "coil")
-        self.board.Add(gnd)
-        self.board.Add(coil)
+        gnd = self.board.FindNet("gnd")
+        if gnd is None:
+            gnd = pcbnew.NETINFO_ITEM(self.board, "gnd")
+            self.board.Add(gnd)
+            
+        coil = self.board.FindNet("coil")
+        if coil is None:
+            coil = pcbnew.NETINFO_ITEM(self.board, "coil")
+            self.board.Add(coil)
 
     def udpate_lset(self, n_layers):
-        lset = [pcbnew.F_Cu]
+        lset =[pcbnew.F_Cu]
         if n_layers >= 4:
             lset.append(pcbnew.In1_Cu)
             lset.append(pcbnew.In2_Cu)
@@ -320,59 +246,50 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             lset.append(pcbnew.In17_Cu)
             lset.append(pcbnew.In18_Cu)   
         lset.append(pcbnew.B_Cu)
-
         return lset
 
-
-    # core functions
-
     def generate(self):
+        self.get_parameters()
 
-        # get GUI parameters
-        ret = self.get_parameters()
-        if ret<0:
+        radial_available = self.r_coil_out - self.r_coil_in
+        radial_required = self.n_loops * self.dr + self.trk_w
+        inner_half_width = self.r_coil_in * math.sin(math.pi / self.n_slots)
+        angular_required = self.n_loops * self.dr + (self.trk_w / 2)
+
+        error_msg = ""
+        if radial_required > radial_available:
+            error_msg += (f"- Nicht genug radialer Platz!\n"
+                          f"  Verfügbar: {radial_available/self.SCALE:.2f} mm\n"
+                          f"  Benötigt: {radial_required/self.SCALE:.2f} mm\n\n")
+        
+        if angular_required >= inner_half_width:
+            max_loops_estimated = int((inner_half_width - (self.trk_w / 2)) / self.dr)
+            if max_loops_estimated < 0: max_loops_estimated = 0
+            error_msg += (f"- Nicht genug Platz im Zentrum (Kollision)!\n"
+                          f"  Bei {self.n_slots} Slots und einem Innenradius von {self.r_coil_in/self.SCALE:.2f} mm "
+                          f"sind maximal ca. {max_loops_estimated} Loops möglich.\n")
+
+        if error_msg:
+            wx.MessageBox(
+                f"Generierung abgebrochen (Geometriefehler):\n\n{error_msg}",
+                "Geometrie Konflikt (KiMotor)",
+                wx.OK | wx.ICON_ERROR
+            )
             return
 
-        # generate and connect coils
-        coils = self.do_windings(
+        self.th0 = 2*math.pi/self.n_slots
+
+        coils = self.do_coils(
             self.r_coil_in, 
             self.r_coil_out,
-            self.dr,
             self.n_slots,
-            self.n_phases,
             self.n_loops,
             self.lset,
             self.strategy)
 
-        # generate phase rings
-        [cnx_seg, cnx_str, cri] = self.do_rings(
-            self.r_coil_in,
-            self.d_via,
-            self.n_slots,
-            self.n_phases)
-        
-        self.do_junctions(
-            self.r_coil_in,
-            self.dr,
-            self.n_slots,
-            self.n_phases,
-            coils, 
-            cnx_seg, 
-            cnx_str)
-        
-        # terminals
-        if self.trmtype != "None":
-            trm_lib = self.fp_path + ('Connector_Wire.pretty' if self.trmtype=='THT' else 'TestPoint.pretty')
-            trm_fp = self.term_db.get(self.trmtype).get(self.m_termSize.GetStringSelection())
+        # Neues professionelles Eck-Routing aufrufen
+        lowest_used_radius = self.do_professional_routing(coils)
 
-            self.do_terminals(
-                self.r_term,
-                self.n_term,
-                self.r_coil_in,
-                coils,
-                trm_lib, trm_fp)
-
-        # create outline, mounting holes and thermal zones
         if self.outline != "None":
             self.do_outline(
                 self.r_in, 
@@ -382,628 +299,391 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             
             self.do_mounting_holes(
                 self.r_mh_out,
-                self.n_mh_out if self.outline=="Circle" else self.n_edges if self.n_mh_out>0 else 0,
+                self.n_mh_out,
                 self.r_mh_in,
-                self.n_mh_in if self.outline=="Circle" else self.n_edges if self.n_mh_in>0 else 0,
+                self.n_mh_in,
                 self.n_edges,
                 hs=self.mhs)
             
+            # Thermofläche sicher unter den Ringen beginnen lassen
+            cri_thermal = lowest_used_radius - self.trk_space - self.d_via/2.0
             self.do_thermal_zones(
                 self.r_out,
-                cri)
+                cri_thermal)
         
-        # draw silkscreen
-        self.do_silkscreen(
-            self.r_coil_in,
-            self.r_coil_out+self.trk_w, 
-            self.n_slots)
+        self.do_silkscreen( self.r_coil_out+self.trk_w, self.r_coil_in, self.th0 )
 
-        # update board
+        if hasattr(self.board, 'BuildConnectivity'):
+            self.board.BuildConnectivity()
+            
         pcbnew.Refresh()
+        try:
+            pcbnew.UpdateUserInterface()
+        except AttributeError:
+            pass
 
-        # TODO: all stats shall be moved here
-        # stats (single pole only)
-        
-        #self.board.Groups()[0].RunOnChildren(item: {item.Type()})
-        #wx.LogWarning(f'{item.Type()}')
-        #if p==0:
-        self.tl = 0 #self.stats_length(self.board)
-        self.tr = 0 #self.stats_rlc(self.board, self.trk_w/self.SCALE/1000, self.tthick)
+        temp = self.m_ambT.GetValue()
+        phase_len_mm, phase_r_temp = self.calculate_stats(self.board, net_name="coil", temp=temp)
+        self.tl = phase_len_mm
+        self.tr = phase_r_temp
 
-        # update gui stats
         self.lbl_phaseLength.SetLabel( '%.2f' % self.tl )
-        self.lbl_phaseR.SetLabel( '%.2f' % self.tr )
+        self.lbl_phaseR.SetLabel( '%.3f' % self.tr )
 
         self.btn_clear.Enable(True)
 
-    def coil_tracker(self, waypts, layer, n_loops, group):
-        """ Connnect the coil waypoints with PCB tracks on the assigned layer  
-
-        Args:
-            waypts (numpy.matrix): set of the coil waypoints
-            layer (pcbnew.LAYER): layer on which the tracks are created
-            n_loops (int): number of coil loops
-
-        Returns:
-            list : list of coil start and end points
+    def coil_tracker(self, mpt, layer, n_loops, group, is_first_layer=False, is_last_layer=False, is_ccw=False):
+        """ 
+        Zeichnet die Spule. 
+        Trennt die lästigen "Stummel" ab, sodass die Spule an den äußeren Ecken endet.
         """
-
-        net_coil = self.board.FindNet("coil")
-
-        # index of current point
         ip = 0 
         t0 = None
+        nseg = n_loops*4 - 1 
 
-        # define how many sides 
-        n_side = n_loops*4 - 1 
-
-        for side in range(n_side):
-
-            # side start point
-            side_s = self.fpoint( 
-                int(waypts[ip][0,0]), 
-                int(waypts[ip][0,1]))
+        # Bestimmen, welcher Abschnitt weggelassen wird, damit die Spule an der Ecke stoppt!
+        skip_seg = -1
+        if is_first_layer and not is_ccw: 
+            skip_seg = 0
+        if is_last_layer and is_ccw: 
+            skip_seg = nseg - 1
+        if is_last_layer and not is_ccw: 
+            skip_seg = nseg - 1
             
-            # even sides (0,2,4,etc.)
-            if not side%2:
+        actual_start = None
+        actual_end = None
+
+        for seg in range(nseg):
+            ps = self.fpoint( int(mpt[ip][0,0]), int(mpt[ip][0,1]) )
+            
+            is_arc = (not seg%2)
+            if is_arc:
                 ip += 1
-                t = pcbnew.PCB_ARC(self.board)
-                t.SetMid(
-                    self.fpoint(
-                        int(waypts[ip][0,0]),
-                        int(waypts[ip][0,1])))
-
-                # 1: outer side, -1: inner side
-                side = -1 if not side%4 else 1
+                mid_pt = self.fpoint(int(mpt[ip][0,0]), int(mpt[ip][0,1]))
+                side = -1 if not seg%4 else 1
             
-            # odd sides
+            ip += 1
+            pe = self.fpoint( int(mpt[ip][0,0]), int(mpt[ip][0,1]) )
+
+            # Den Stummel überspringen (nicht zeichnen!)
+            if seg == skip_seg:
+                if skip_seg == 0:
+                    actual_start = pe  # Start rückt auf die physikalische Ecke!
+                if skip_seg == nseg - 1:
+                    actual_end = ps    # Ende rückt auf die physikalische Ecke!
+                continue
+
+            if actual_start is None and seg == 0:
+                actual_start = ps
+            if actual_end is None and seg == nseg - 1:
+                actual_end = pe
+
+            if is_arc:
+                t = pcbnew.PCB_ARC(self.board)
+                t.SetMid(mid_pt)
             else:
                 t = pcbnew.PCB_TRACK(self.board)
 
-            ip += 1
-            side_e = self.fpoint( 
-                int(waypts[ip][0,0]), 
-                int(waypts[ip][0,1]))
-            t.SetNet(net_coil)
             t.SetWidth( self.trk_w )
             t.SetLayer( layer )
-            t.SetStart( side_s )
-            t.SetEnd( side_e )
+            t.SetStart( ps )
+            t.SetEnd( pe )
             self.board.Add(t)
+            
+            net_coil = self.board.FindNet("coil")
+            if net_coil:
+                t.SetNet(net_coil)
 
-            # fillet
-            if side > 0 and self.r_fill > 0:
+            if t0 is not None and self.r_fill > 0:
                 fa = self.fillet(self.board, t0, t, self.r_fill, side)
-                #group.AddItem(fa)
-
-            # add to group
+                
             group.AddItem(t)
-
             t0 = t
+            
+        return [actual_start, actual_end]
+
+    def do_coils(self, ri, ro, n_slots, n_loops=1, lset=None, mode=0):
+        th0 = 2*math.pi/n_slots
+        if mode == 0:
+            pcu0, pcu0m, pcu0mi = ksolve.parallel( ri, ro, self.dr, th0, n_loops, 0 )
+            pcu1, pcu1m, pcu1mi = ksolve.parallel( ri, ro, self.dr, th0, n_loops, 1 )
+        else:
+            pcu0 = ksolve.radial( ri, ro, self.dr, th0, n_loops, 0 )
+            pcu1 = ksolve.radial( ri, ro, self.dr, th0, n_loops, 1 )
         
-        coil_se = []
-        coil_se.append( self.fpoint( int(waypts[0][0,0]), int(waypts[0][0,1]) ) )
-        coil_se.append( t.GetEnd() )
-
-        return coil_se
-
-    def do_windings(self, ri, ro, dr, n_slots, n_phases, n_loops=1, lset=None, mode=0):
-        """ Generate the coil tracks (with fillet) on the given PCB layers
-
-        Args:
-            ri (int): coil inner radius
-            ro (int): coil outer radius
-            dr (int): min track spacing
-            n_slots (int): number of motor slots
-            n_loops (int): number of coil loops (per layer)
-            lset (list): list of the PCB layers to use
-            mode (int): 0: parallel coil sides, 1: radial coil sides
-
-        Returns:
-            list: all windings start and end points, grouped by phase 
-        """
+        coil_p =[]
+        for i in range(self.phases):
+            coil_p.append([])
+        
         net_coil = self.board.FindNet("coil")
 
-        th0 = 2*math.pi/n_slots
-
-        r_clear = self.trk_w/2 + self.min_clear + self.d_via/2
-        t_clear = self.d_via + self.min_clear
-
-        r_via = ri - r_clear
-        thv = math.atan2(t_clear, r_via)
-
-        r_via_o = ro - (n_loops-1)*self.dr - r_clear
-        thv_o = math.atan2(t_clear, r_via_o)
-
-        n_via = len(lset)/2
-        vias = range(0,1) if n_via==1 else range(int(-n_via/2), math.ceil(n_via/2))
-        
-        # generate coil waypoints
-        if mode == 0:
-            # TODO: update
-            waypts_cw, pcu0m, pcu0mi = ksolve.parallel( ri, ro, dr, th0, n_loops, 0 )
-            waypts_ccw, pcu1m, pcu1mi = ksolve.parallel( ri, ro, dr, th0, n_loops, 1 )
-        else:
-            waypts_cw = ksolve.coil_planner( "radial", ri, ro, dr, n_slots, n_loops, "cw" )
-            waypts_ccw = ksolve.coil_planner( "radial", ri, ro, dr, n_slots, n_loops, "ccw" )
-            waypts_cw1 = ksolve.coil_planner( "radial", ri, ro, dr, n_slots, n_loops, "cw", 1 )
-            waypts_ccw1 = ksolve.coil_planner( "radial", ri, ro, dr, n_slots, n_loops, "ccw", 1 )
-
-        windings = []
-        for p in range(n_phases):
-            windings.append([])
-
-        for slot in range(n_slots):
+        for p in range(n_slots):
             pgroup = pcbnew.PCB_GROUP( self.board )
-            pgroup.SetName("slot_"+str(slot))
+            pgroup.SetName("pole_"+str(p))
             self.board.Add(pgroup)
 
-            # start/end points of single winding
-            winding_se = []
+            coil_se =[]
+            th = th0 * p 
+            R = np.array([[math.cos(th), -math.sin(th)],[math.sin(th), math.cos(th)]])
+            Tcw = np.matmul(R, pcu0.transpose()).transpose()
+            Tccw = np.matmul(R, pcu1.transpose()).transpose()
 
-            # rotation matrix
-            th = th0 * slot 
-            R = np.array([
-                [math.cos(th), -math.sin(th)],
-                [math.sin(th), math.cos(th)]])
-            
-            # rotate coil waypoints to the slot position (around PCB motor axis)
-            waypts_cw_R = np.matmul(R, waypts_cw.transpose()).transpose()
-            waypts_ccw_R = np.matmul(R, waypts_ccw.transpose()).transpose()
-            waypts_cw1_R = np.matmul(R, waypts_cw1.transpose()).transpose()
-            waypts_ccw1_R = np.matmul(R, waypts_ccw1.transpose()).transpose()
-
-            for i, layer in enumerate(lset):
+            for idx, layer in enumerate(lset):
+                is_first = (idx == 0)
+                is_last = (idx == len(lset)-1)
+                is_ccw = (idx % 2 != 0)
                 
-                # pick the right "template" of waypoints
-                if i==0 or i==len(lset)-1:
-                    # outer layers: ...
-                    wp = waypts_ccw_R if i%2 else waypts_cw_R
-
-                else:
-                    # inner layers: ...
-                    wp = waypts_ccw1_R if i%2 else waypts_cw1_R
-
-                # generate coil 
-                coil_se = self.coil_tracker(wp, layer, n_loops, pgroup)
-                
-                # connect coils across layers to create the winding
-                if i%2 and i<len(lset):
-                    
-                    # on odd layers (coil CCW) stitch coils' end points 
-                    iv = math.floor(i/2)
-
-                    # via index
-                    viv = vias[iv]
-
-                    # via coordinates
-                    xy_v = self.fpoint( 
-                        int(r_via_o*math.cos(th + thv_o*viv)), 
-                        int(r_via_o*math.sin(th + thv_o*viv)))
-                    
-                    # stitch
+                if is_ccw:
+                    ct = self.coil_tracker(Tccw, layer, n_loops, pgroup, is_first, is_last, is_ccw)
                     via = pcbnew.PCB_VIA(self.board)
-                    via.SetViaType(pcbnew.VIATYPE_THROUGH)
-                    via.SetPosition( xy_v )
-                    via.SetDrill( self.d_drill )
-                    via.SetWidth( self.d_via )
-                    self.board.Add(via)
-
-                    #
-                    a = pcbnew.PCB_ARC(self.board)
-                    a.SetNet(net_coil)
-                    a.SetLayer(lset[i-1])
-                    a.SetWidth(self.trk_w)
-                    a.SetStart( coil_se[1] )
-                    a.SetEnd(
-                        self.fpoint( 
-                            int((r_via_o+r_clear)*math.cos(th + thv_o*vias[iv])), 
-                            int((r_via_o+r_clear)*math.sin(th + thv_o*vias[iv]))))
-                    a.SetMid(
-                        self.fpoint( 
-                            int((r_via_o+r_clear)*math.cos(th + thv_o*vias[iv] /2 )), 
-                            int((r_via_o+r_clear)*math.sin(th + thv_o*vias[iv] /2 ))))
-                    self.board.Add(a)
-
-                    if viv > 0:
-                        a = pcbnew.PCB_ARC(self.board)
-                        a.SetNet(net_coil)
-                        a.SetLayer(lset[i])
-                        a.SetWidth(self.trk_w)
-                        a.SetStart( coil_se[1] )
-                        a.SetEnd(
-                            self.fpoint( 
-                                int((r_via_o+r_clear)*math.cos(th + thv_o*viv)), 
-                                int((r_via_o+r_clear)*math.sin(th + thv_o*viv))))
-                        a.SetMid(
-                            self.fpoint( 
-                                int((r_via_o+r_clear)*math.cos(th + thv_o*viv /2 )), 
-                                int((r_via_o+r_clear)*math.sin(th + thv_o*viv /2 ))))
-                        self.board.Add(a)
-
-                    t = pcbnew.PCB_TRACK(self.board)
-                    t.SetNet(net_coil)
-                    t.SetWidth( self.trk_w )
-                    t.SetLayer( lset[i] )
-                    t.SetStart( a.GetEnd() )
-                    t.SetEnd( xy_v )
-                    self.board.Add(t)
-                    t = pcbnew.PCB_TRACK(self.board)
-                    a.SetNet(net_coil)
-                    t.SetWidth( self.trk_w )
-                    t.SetLayer( lset[i-1] )
-                    t.SetStart( a.GetEnd() )
-                    t.SetEnd( xy_v )
-                    self.board.Add(t)
-
-                # on even layers (coil CW), but first, stitch coils' start points
-                elif not i%2 and i>0:
-
-                    iv = int(i/2)
-
-                    # via index
-                    viv = vias[iv]
-
-                    xy_v = self.fpoint( 
-                        int(r_via*math.cos(th + thv*viv)), 
-                        int(r_via*math.sin(th + thv*viv)))
-                    
-                    # stitch
-                    via = pcbnew.PCB_VIA(self.board)
-                    via.SetViaType(pcbnew.VIATYPE_THROUGH)
-                    via.SetPosition( xy_v)
-                    via.SetDrill( self.d_drill )
-                    via.SetWidth( self.d_via )
-                    self.board.Add(via)
-                    
-                    a = pcbnew.PCB_ARC(self.board)
-                    a.SetNet(net_coil)
-                    a.SetLayer(lset[i-1])
-                    a.SetWidth(self.trk_w)
-                    a.SetStart( coil_se[0] )
-                    a.SetEnd(
-                        self.fpoint( 
-                            int((r_via+r_clear)*math.cos(th + thv*viv)), 
-                            int((r_via+r_clear)*math.sin(th + thv*viv))))
-                    a.SetMid(
-                        self.fpoint( 
-                            int((r_via+r_clear)*math.cos(th + thv*viv /2 )), 
-                            int((r_via+r_clear)*math.sin(th + thv*viv /2 ))))
-                    self.board.Add(a)
-                    
-                    if viv<0:
-                        a = pcbnew.PCB_ARC(self.board)
-                        a.SetNet(net_coil)
-                        a.SetLayer(lset[i])
-                        a.SetWidth(self.trk_w)
-                        a.SetStart( coil_se[0] )
-                        a.SetEnd(
-                            self.fpoint( 
-                                int((r_via+r_clear)*math.cos(th + thv*viv)), 
-                                int((r_via+r_clear)*math.sin(th + thv*viv))))
-                        a.SetMid(
-                            self.fpoint( 
-                                int((r_via+r_clear)*math.cos(th + thv*viv /2 )), 
-                                int((r_via+r_clear)*math.sin(th + thv*viv /2 ))))
-                        self.board.Add(a)
-
-                    
-                    t = pcbnew.PCB_TRACK(self.board)
-                    t.SetNet(net_coil)
-                    t.SetWidth( self.trk_w )
-                    t.SetLayer( lset[i] )
-                    t.SetStart( a.GetEnd() )
-                    t.SetEnd( xy_v )
-                    self.board.Add(t)
-                    t = pcbnew.PCB_TRACK(self.board)
-                    t.SetNet(net_coil)
-                    t.SetWidth( self.trk_w )
-                    t.SetLayer( lset[i-1] )
-                    t.SetStart( a.GetEnd() )
-                    t.SetEnd( xy_v )
-                    self.board.Add(t)
-
-
-                # append first and last only
-                if i==0 or i==len(lset)-1:
-                    winding_se.append(coil_se[0])
-   
-            # store coils by phase
-            windings[ slot % n_phases ].append(winding_se)
-
-        return windings
-
-    def do_rings(self, r_in, dr, n_slot, n_phase):
-        """ Create the arc segments that connect the coils of the same phase
-
-        Args:
-            r_in (int): radial position of the coil inner end
-            dr (int): clearance
-            n_slot (int): number of motor slots
-            n_phase (int): number of motor phases
-        """
-
-        # rings spaced from coils
-        r_in -= 2*dr
-
-        # slot angular width
-        th0 = 2*math.pi/n_slot
-        # segment start/end points angular shift
-        th_shift_start  = th0/2
-        th_shift_end    = -th0
-        
-        # number of distinct segments on each phase ring 
-        n_rc = int(n_slot/n_phase)-1
-
-        # all segments, of all the phase rings
-        conns_t = []
-        # phase-phase connection
-        cnx_star = None
-
-        # create phase tracks
-        for p in range(n_phase):
-
-            # radial location of the ring
-            cri = r_in - p*dr
-            
-            
-            thv = math.atan2(2*self.trk_w,cri)
-
-            # segments on the same phase ring
-            segs_t = []
-
-            for i_rc in range(n_rc):
-                # find directions of start, end, mid points of the arc segment
-                th_s = th0*( p + i_rc*n_phase ) + th_shift_start - thv
-                th_e = th_s + th0*n_phase + th_shift_end + 2*thv
-                th_m = (th_s+th_e)/2
-                # translate (r,th) to (x,y) coords
-                xy_s = self.fpoint( int(cri*math.cos(th_s)), int(cri*math.sin(th_s)) )
-                xy_e = self.fpoint( int(cri*math.cos(th_e)), int(cri*math.sin(th_e)) )
-                xy_m = self.fpoint( int(cri*math.cos(th_m)), int(cri*math.sin(th_m)) )
-
-                conn = pcbnew.PCB_ARC(self.board)
-                conn.SetLayer(pcbnew.F_Cu)
-                conn.SetWidth(self.trk_w)
-                conn.SetStart( xy_s )
-                conn.SetMid( xy_m )
-                conn.SetEnd( xy_e )
-                self.board.Add(conn)
-
-                # track ends towards the coil (towards motor internals)
-                segs_t.append([xy_s,xy_e])    
-
-            conns_t.append(segs_t)
-
-            # star-connection on 1st phase ring
-            if p==0:
-                # find directions
-                ths = -3*th0 + th0/2 - thv
-                the = -1*th0 + th0/2 - thv
-                thm = (ths+the)/2
-                # translate (r,th) to (x,y) coords
-                rs = self.fpoint( int(cri*math.cos(ths)), int(cri*math.sin(ths)) )
-                rm = self.fpoint( int(cri*math.cos(thm)), int(cri*math.sin(thm)) )
-                re = self.fpoint( int(cri*math.cos(the)), int(cri*math.sin(the)) )
-                # do track
-                conn = pcbnew.PCB_ARC(self.board)
-                conn.SetLayer(pcbnew.B_Cu)
-                conn.SetWidth(self.trk_w)
-                conn.SetStart( rs )
-                conn.SetMid( rm )
-                conn.SetEnd( re )
-                self.board.Add(conn)
-
-                # here append also the mid point
-                cnx_star = [rs,rm,re]
-
-        # return:
-        # - ring segments coordinates
-        # - star connection coordinates 
-        # - radial location of the innermost ring + some (used for filling keep-out)
-        return conns_t, cnx_star, cri-2*dr
-
-    def do_junctions(self, r_in, dr, n_slot, n_phase, coils, rings, cnx_str):
-        """ Create the jumper segments that connect the coil terminations with the 
-        race tracks of the phase connecting rings
-
-        Args:
-            r_in (int): radial position of the coil inner end
-            dr (int): min track spacing
-            n_slot (int): number of motor slots
-            n_phase (int): number of motor phases
-            coils (list): contains start and end points of each coil, by phase
-            rings (list): contains start and end points of each ring segment, by phase
-
-        """
-
-        # slot angular width
-        th0 = 2*math.pi/n_slot
-
-        thv = math.atan2(dr,r_in)
-
-        th_shift_start = th0/2 - thv
-        th_shift_end = -2*th_shift_start
-        
-        r_in -= dr
-
-        # number of segments on each phase ring 
-        n_ring_seg = int(n_slot/n_phase)-1
-
-        for phase in range(n_phase):
-                        
-            for seg in range(n_ring_seg):
-                
-                ring_seg_s = rings[phase][seg][0]
-                ring_seg_e = rings[phase][seg][1]
-                
-                #c1s = coil_p[p][i][0]
-                coil_1_e = coils[phase][seg][1]
-
-                coil_2_s = coils[phase][seg+1][0]
-                coil_2_e = coils[phase][seg+1][1]
-
-                if seg <= n_ring_seg:
-                    j = pcbnew.PCB_TRACK(self.board)
-                    j.SetLayer(pcbnew.B_Cu)
-                    j.SetWidth(self.trk_w)
-                    j.SetStart( coil_1_e )
-                    j.SetEnd( ring_seg_s )
-                    self.board.Add(j)
-
-                    if seg == 0:
-                        via = pcbnew.PCB_VIA(self.board)
-                        via.SetPosition( ring_seg_s )
-                        via.SetDrill( self.d_drill )
-                        via.SetWidth( self.d_via )
-                        self.board.Add(via)    
-
-                    if phase==0 or seg==n_ring_seg-1:
-                        j = pcbnew.PCB_TRACK(self.board)
-                        j.SetLayer(pcbnew.F_Cu)
-                        j.SetWidth(self.trk_w)
-                        j.SetStart( coil_2_s )
-                        j.SetEnd( ring_seg_e )
-                        self.board.Add(j)
-
+                    if len(lset)==2:
+                        via.SetViaType(pcbnew.VIATYPE_THROUGH)
                     else:
-                        # cross under the other phases
-                        th_s = th0*( phase + seg*n_phase ) + th_shift_start
-                        th_e = th_s + th0*n_phase + th_shift_end
-                        xy_a = self.fpoint(
-                            int(r_in*math.cos(th_e)), 
-                            int(r_in*math.sin(th_e)))
-                        
-                        j = pcbnew.PCB_TRACK(self.board)
-                        j.SetLayer(pcbnew.B_Cu)
-                        j.SetWidth(self.trk_w)
-                        j.SetStart( ring_seg_e )
-                        j.SetEnd( xy_a )
-                        self.board.Add(j)
-                        via = pcbnew.PCB_VIA(self.board)
-                        via.SetPosition( ring_seg_e )
-                        via.SetDrill( self.d_drill )
-                        via.SetWidth( self.d_via )
-                        self.board.Add(via)
-
-                        j = pcbnew.PCB_TRACK(self.board)
-                        j.SetLayer(pcbnew.F_Cu)
-                        j.SetWidth(self.trk_w)
-                        j.SetStart( xy_a )
-                        j.SetEnd( coil_2_s )
-                        self.board.Add(j)
-                        via = pcbnew.PCB_VIA(self.board)
-                        via.SetPosition( xy_a )
-                        via.SetDrill( self.d_drill )
-                        via.SetWidth( self.d_via )
-                        self.board.Add(via)
-
-                if seg > 0:
-                    # jumper at each coil start, but the first coil, for each phase  
-                    j = pcbnew.PCB_TRACK(self.board)
-                    j.SetLayer(pcbnew.B_Cu)
-                    j.SetWidth(self.trk_w)
-                    j.SetStart( coil_1_e )
-                    j.SetEnd( ring_seg_s )
-                    self.board.Add(j)
-                    via = pcbnew.PCB_VIA(self.board)
-                    via.SetPosition( ring_seg_s )
+                        via.SetViaType(pcbnew.VIATYPE_BLIND_BURIED)
+                    via.SetLayerPair( lset[idx-1], lset[idx] )
+                    via.SetPosition( ct[1] )
                     via.SetDrill( self.d_drill )
                     via.SetWidth( self.d_via )
+                    if net_coil: via.SetNet(net_coil)
                     self.board.Add(via)
+                else:
+                    ct = self.coil_tracker(Tcw, layer, n_loops, pgroup, is_first, is_last, is_ccw)
+                    if len(lset)>2 and idx:
+                        via = pcbnew.PCB_VIA(self.board)
+                        via.SetViaType(pcbnew.VIATYPE_BLIND_BURIED)
+                        via.SetLayerPair( lset[idx-1], lset[idx] )
+                        via.SetPosition( ct[0] )
+                        via.SetDrill( self.d_drill )
+                        via.SetWidth( self.d_via )
+                        if net_coil: via.SetNet(net_coil)
+                        self.board.Add(via)
 
-                # star-connect jumper
-                if seg == n_ring_seg-1:
-                    j = pcbnew.PCB_TRACK(self.board)
-                    j.SetLayer(pcbnew.B_Cu)
-                    j.SetWidth(self.trk_w)
-                    j.SetStart( coil_2_e )
-                    j.SetEnd( cnx_str[phase] )
-                    self.board.Add(j)
+                if is_first:
+                    coil_se_start = ct[0] # Exakte Ecke!
+                if is_last:
+                    coil_se_end = ct[1]   # Exakte Ecke!
+   
+            coil_se = [coil_se_start, coil_se_end]
+            coil_p[ p%self.phases ].append(coil_se)
 
-    def do_terminals(self, r_term, n_term, r_coil_in, coils, lib='',fp=''):
-        """ Create the motor terminals, and the tracks that connect the terminals to the coils
+        return coil_p
 
-        Args:
-            r_term (in): radial position of the motor terminals
-            n_term (in): number of motor terminals
-            r_coil_in (in): radial position of the coil inner end
-            coils (list): list of coils tracks
-            lib (string): footprint library absolute path
-            fp (string): terminal footprint name
-        """
-
+    # =========================================================================
+    # PROFESSIONELLES ROUTING: 4 Anchor-Pins, Radial-Lines, Keine Kreuzungen
+    # =========================================================================
+    def do_professional_routing(self, coils):
         net_coil = self.board.FindNet("coil")
+        phases = self.phases
+        th0 = 2 * math.pi / self.n_slots
+        n_rc = int(self.n_slots / phases) - 1
 
-        # base angle, half (to position terminals), quarter (to locate arc track mid-point)
-        th0 = 2*math.pi/self.n_slots
-        thr = th0/4
+        # 1. PLATZIERUNG DER ISOLIERTEN STÜTZ-VIAS (Dummy Anchor Pins) AN DEN AUSSENKANTEN
+        # Leicht nach innen versetzt, damit sie perfekt im Kupfer der äußersten Spule sitzen
+        r_out_via = self.r_coil_out - self.trk_w - self.d_via/2.0
+        th_out_off = (th0 / 2.0) * 0.85
+        
+        for slot in range(self.n_slots):
+            th_c = slot * th0
+            pt_out_a = self.fpoint(int(r_out_via * math.cos(th_c - th_out_off)), int(r_out_via * math.sin(th_c - th_out_off)))
+            pt_out_b = self.fpoint(int(r_out_via * math.cos(th_c + th_out_off)), int(r_out_via * math.sin(th_c + th_out_off)))
+            for pt in[pt_out_a, pt_out_b]:
+                via = pcbnew.PCB_VIA(self.board)
+                via.SetPosition(pt)
+                via.SetDrill(self.d_drill)
+                via.SetWidth(self.d_via)
+                # Kein Netz zugewiesen! (Dummy / Haltepin)
+                self.board.Add(via)
 
-        Rcw = np.array([
-            [math.cos(thr), -math.sin(thr)],
-            [math.sin(thr), math.cos(thr)],
-        ])
+        # 2. BERECHNUNG DES SICHEREN ABSTANDS FÜR DIE SAMMELSCHIENEN (inkl. Via)
+        current_radius = self.r_coil_in - (self.d_via / 2.0) - self.ring_space - (self.ring_w / 2.0)
+        lowest_used_radius = current_radius
 
-        for i in range(n_term):
+        for p in range(phases):
+            # Radius für diesen speziellen Phasenring
+            cri = current_radius - p * self.ring_dr
+            lowest_used_radius = cri
 
-            # radial to cartesian coords of terminal, aux corner, coil start 
-            th = th0*i - th0/2
+            for i in range(n_rc):
+                # Durch den Löschvorgang des Stummels liegen c1e und c2s jetzt EXAKT an den physikalischen Ecken!
+                c1e = coils[p][i][1]    # Ende von Coil i (auf B_Cu)
+                c2s = coils[p][i+1][0]  # Start von Coil i+1 (auf F_Cu)
 
-            ax = r_coil_in*math.cos(th)
-            ay = r_coil_in*math.sin(th)
-            tp = np.matmul(Rcw, np.array([ax,ay]))  
+                # Löt-Via in die inneren Spulenecken setzen (Netz-Verbindung vorhanden)
+                v1 = pcbnew.PCB_VIA(self.board)
+                v1.SetPosition(c1e)
+                v1.SetDrill(self.d_drill)
+                v1.SetWidth(self.d_via)
+                if net_coil: v1.SetNet(net_coil)
+                self.board.Add(v1)
 
-            xy_t = self.fpoint( 
-                int(r_term*math.cos(th)), 
-                int(r_term*math.sin(th)))
-            xy_a = self.fpoint( int(ax), int(ay) )
-            xy_c = coils[i][0][0]
+                v2 = pcbnew.PCB_VIA(self.board)
+                v2.SetPosition(c2s)
+                v2.SetDrill(self.d_drill)
+                v2.SetWidth(self.d_via)
+                if net_coil: v2.SetNet(net_coil)
+                self.board.Add(v2)
 
-            # terminal
-            if self.trmtype != "None":
-                m = pcbnew.FootprintLoad(lib, fp)
-                m.Value().SetVisible(False)
-                lib_name= lib.split('.')[-2].split('/')[-1]
-                m.SetFPIDAsString(lib_name + ":" + fp)
-                m.SetPosition(xy_t)
-                m.Rotate(xy_t, self.eda_angle(-th))
-                for p in m.Pads():
-                    p.SetNet(net_coil)
+                # Schnurgerade radiale Zuleitung auf der UNTERSEITE (B_Cu) zum Sammelring ziehen
+                th1 = math.atan2(c1e.y, c1e.x)
+                via1_pt = self.fpoint(int(cri * math.cos(th1)), int(cri * math.sin(th1)))
+                t1 = pcbnew.PCB_TRACK(self.board)
+                t1.SetLayer(pcbnew.B_Cu)
+                t1.SetWidth(self.trk_w)
+                if net_coil: t1.SetNet(net_coil)
+                t1.SetStart(c1e)
+                t1.SetEnd(via1_pt)
+                self.board.Add(t1)
+
+                # Via direkt am Sammelring setzen (um wieder auf F_Cu nach oben zu kommen)
+                v1_ring = pcbnew.PCB_VIA(self.board)
+                v1_ring.SetPosition(via1_pt)
+                v1_ring.SetDrill(self.d_drill)
+                v1_ring.SetWidth(self.d_via)
+                if net_coil: v1_ring.SetNet(net_coil)
+                self.board.Add(v1_ring)
+
+                th2 = math.atan2(c2s.y, c2s.x)
+                via2_pt = self.fpoint(int(cri * math.cos(th2)), int(cri * math.sin(th2)))
+                t2 = pcbnew.PCB_TRACK(self.board)
+                t2.SetLayer(pcbnew.B_Cu) # Unterquert alle Leitungen der anderen Phasen!
+                t2.SetWidth(self.trk_w)
+                if net_coil: t2.SetNet(net_coil)
+                t2.SetStart(c2s)
+                t2.SetEnd(via2_pt)
+                self.board.Add(t2)
+
+                v2_ring = pcbnew.PCB_VIA(self.board)
+                v2_ring.SetPosition(via2_pt)
+                v2_ring.SetDrill(self.d_drill)
+                v2_ring.SetWidth(self.d_via)
+                if net_coil: v2_ring.SetNet(net_coil)
+                self.board.Add(v2_ring)
+
+                # 3. Den dicken Sammel-Ring AUF DER OBERSEITE (F_Cu) zeichnen (kreuzt über die blauen Linien drüber)
+                d_th = th2 - th1
+                if d_th > math.pi: d_th -= 2*math.pi
+                elif d_th < -math.pi: d_th += 2*math.pi
                 
-                # REF
-                dth = 0.05 #rad
-                m.Reference().SetPosition( 
-                    self.fpoint( 
-                        int(r_term*math.cos(th+dth)), 
-                        int(r_term*math.sin(th+dth))))
-                m.SetReference( "A" if i==0 else ("B" if i==1 else "C") )
-                self.board.Add(m)
+                th_mid = th1 + d_th / 2.0
+                via_mid = self.fpoint(int(cri * math.cos(th_mid)), int(cri * math.sin(th_mid)))
+                
+                arc = pcbnew.PCB_ARC(self.board)
+                arc.SetLayer(pcbnew.F_Cu)
+                arc.SetWidth(self.ring_w)
+                if net_coil: arc.SetNet(net_coil)
+                arc.SetStart(via1_pt)
+                arc.SetMid(via_mid)
+                arc.SetEnd(via2_pt)
+                self.board.Add(arc)
 
-            # track, straight part
-            conn = pcbnew.PCB_TRACK(self.board)
-            conn.SetLayer(pcbnew.F_Cu)
-            conn.SetNet(net_coil)
-            conn.SetWidth(self.trk_w)
-            conn.SetStart(xy_t)
-            conn.SetEnd(xy_a)
-            self.board.Add(conn)
-            # track, arc part
-            conn = pcbnew.PCB_ARC(self.board)
-            conn.SetLayer(pcbnew.F_Cu)
-            conn.SetNet(net_coil)
-            conn.SetWidth(self.trk_w)
-            conn.SetStart(xy_a)    
-            conn.SetMid( self.fpoint( int(tp[0]), int(tp[1])) )
-            conn.SetEnd(xy_c)
-            self.board.Add(conn) 
+        # 4. STERNSCHALTUNG (nur für 3-Phasen Motoren)
+        if phases > 1:
+            star_radius = lowest_used_radius - self.ring_dr
+            lowest_used_radius = star_radius
+            star_pts =[]
+            
+            for p in range(phases):
+                c_end = coils[p][-1][1]
+                
+                # Eck-Via für die allerletzte Spule setzen
+                v_corner = pcbnew.PCB_VIA(self.board)
+                v_corner.SetPosition(c_end)
+                v_corner.SetDrill(self.d_drill)
+                v_corner.SetWidth(self.d_via)
+                if net_coil: v_corner.SetNet(net_coil)
+                self.board.Add(v_corner)
+                
+                th = math.atan2(c_end.y, c_end.x)
+                via_pt = self.fpoint(int(star_radius * math.cos(th)), int(star_radius * math.sin(th)))
+                star_pts.append((th, via_pt))
+                
+                # B_Cu Leitung radial nach unten zum Sternpunkt
+                t = pcbnew.PCB_TRACK(self.board)
+                t.SetLayer(pcbnew.B_Cu)
+                t.SetWidth(self.trk_w)
+                if net_coil: t.SetNet(net_coil)
+                t.SetStart(c_end)
+                t.SetEnd(via_pt)
+                self.board.Add(t)
+                
+                v_ring = pcbnew.PCB_VIA(self.board)
+                v_ring.SetPosition(via_pt)
+                v_ring.SetDrill(self.d_drill)
+                v_ring.SetWidth(self.d_via)
+                if net_coil: v_ring.SetNet(net_coil)
+                self.board.Add(v_ring)
+
+            star_pts.sort(key=lambda x: x[0])
+            for i in range(len(star_pts) - 1):
+                th1, pt1 = star_pts[i]
+                th2, pt2 = star_pts[i+1]
+                
+                d_th = th2 - th1
+                if d_th > math.pi: d_th -= 2*math.pi
+                elif d_th < -math.pi: d_th += 2*math.pi
+                
+                th_mid = th1 + d_th / 2.0
+                pt_mid = self.fpoint(int(star_radius * math.cos(th_mid)), int(star_radius * math.sin(th_mid)))
+
+                arc = pcbnew.PCB_ARC(self.board)
+                arc.SetLayer(pcbnew.F_Cu)
+                arc.SetWidth(self.ring_w)
+                if net_coil: arc.SetNet(net_coil)
+                arc.SetStart(pt1)
+                arc.SetMid(pt_mid)
+                arc.SetEnd(pt2)
+                self.board.Add(arc)
+
+        # 5. FINALE TERMINAL-ANSCHLÜSSE (Zur Platine oder Kabel)
+        term_radius = lowest_used_radius - self.term_offset
+        for p in range(self.n_term):
+            if phases == 1:
+                if p == 0:
+                    c_start = coils[0][0][0]
+                else:
+                    c_start = coils[0][-1][1]
+            else:
+                c_start = coils[p][0][0]
+
+            # Via an die Anschlussecke
+            v_corner = pcbnew.PCB_VIA(self.board)
+            v_corner.SetPosition(c_start)
+            v_corner.SetDrill(self.d_drill)
+            v_corner.SetWidth(self.d_via)
+            if net_coil: v_corner.SetNet(net_coil)
+            self.board.Add(v_corner)
+            
+            th = math.atan2(c_start.y, c_start.x)
+            t_pt = self.fpoint(int(term_radius * math.cos(th)), int(term_radius * math.sin(th)))
+            
+            t = pcbnew.PCB_TRACK(self.board)
+            t.SetLayer(pcbnew.B_Cu)
+            t.SetWidth(self.trk_w)
+            if net_coil: t.SetNet(net_coil)
+            t.SetStart(c_start)
+            t.SetEnd(t_pt)
+            self.board.Add(t)
+
+            if self.trmtype != "None":
+                lib = self.fp_path + ('Connector_Wire.pretty' if self.trmtype == 'THT' else 'TestPoint.pretty')
+                fp = self.term_db.get(self.trmtype).get(self.m_termSize.GetStringSelection())
+                m = pcbnew.FootprintLoad(lib, fp)
+                if m is not None:
+                    m.Value().SetVisible(False)
+                    lib_name = lib.split('.')[-2].split('/')[-1]
+                    m.SetFPIDAsString(lib_name + ":" + fp)
+                    m.SetPosition(t_pt)
+                    m.Rotate(t_pt, self.eda_angle(-th))
+                    for pad in m.Pads():
+                        pad.SetNet(net_coil)
+                    dth = 0.05
+                    m.Reference().SetPosition(self.fpoint(int(term_radius * math.cos(th+dth)), int(term_radius * math.sin(th+dth))))
+                    m.SetReference( "A" if p==0 else ("B" if p==1 else "C") )
+                    self.board.Add(m)
+
+        return term_radius
 
     def do_outline(self, r_in, r_out, n_edge=0, r_fill=0):
-
-        # r_in: inner board radius (shaft bore)
-        # r_out: outer board radius (inscribed circle for polygons)
-        # n_edge: number of board edges (0: circle, 4: square, 4+: polygon)
-        # r_fill: outline fillet radius
-
         edge = pcbnew.PCB_SHAPE(self.board, pcbnew.SHAPE_T_CIRCLE)
         edge.SetCenter( self.fpoint(0,0) )
         edge.SetStart( self.fpoint(0,0) )
@@ -1018,21 +698,17 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             edge.SetEnd( self.fpoint(r_out,0) )
             edge.SetLayer( pcbnew.Edge_Cuts )
             self.board.Add(edge)
-
         elif n_edge >= 4:
-            r_out /= math.cos(math.pi/n_edge) # circumscribed polygon
-            #rp = r2 * math.cos(math.pi/ne) # inscribed polygon
+            r_out /= math.cos(math.pi/n_edge)
             thp = 2*math.pi/n_edge
             tho = thp/2
-
-            points = []
+            points =[]
             for i in range(n_edge):
                 points.append(
                     self.fpoint(
                         int(r_out * math.cos(i*thp+tho)), 
                         int(r_out * math.sin(i*thp+tho)) )
                 )
-
             segs = {}
             for i in range(n_edge):
                 seg = pcbnew.PCB_SHAPE(self.board, pcbnew.SHAPE_T_SEGMENT)
@@ -1041,19 +717,8 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 seg.SetLayer( pcbnew.Edge_Cuts )
                 self.board.Add(seg)
                 segs[i] = seg
-            # fillet
-            #if r_fill:
-            #    for i in range(n_edge):
-            #        a = segs[i]
-            #        b = segs[(i+1) % 4]
-            #        self.fillet_outline(self.board, a, b, r_fill)
 
     def do_mounting_holes(self, r_mh_out=0, n_mh_out=0, r_mh_in=0, n_mh_in=0, n_edge=0, hs="None"):
-
-        # no: number of outer mount points
-        # ni: number of inner shaft mount points
-        # see https://forum.kicad.info/t/place-update-footprint-with-python/23103
-
         if hs != "None":
             fp_lib = self.fp_path + 'MountingHole.pretty'
             fp = self.mhole_db.get(hs)
@@ -1065,73 +730,62 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         if n_edge>0:
             r_mh_out /= math.cos(math.pi/n_edge) 
 
-        # outer
-        if n_mh_out:
+        if n_mh_out > 0:
             th0 = 2*math.pi/n_mh_out
             for i in range(n_mh_out):
                 m = pcbnew.FootprintLoad( fp_lib, fp )
-                m.Reference().SetVisible(False)
-                m.Value().SetVisible(False)
-                m.SetReference('Mo'+str(i))
-                m.SetPosition(
-                    self.fpoint( 
-                        int(r_mh_out * math.cos(th0*i + th0/2)), 
-                        int(r_mh_out * math.sin(th0*i + th0/2))))
-                for pad in m.Pads():
-                    pad.SetNet(ni_gnd)
-                self.board.Add(m)
+                if m is not None:
+                    m.Reference().SetVisible(False)
+                    m.Value().SetVisible(False)
+                    m.SetReference('M'+str(i))
+                    m.SetPosition(
+                        self.fpoint( 
+                            int(r_mh_out * math.cos(th0*i + th0/2)), 
+                            int(r_mh_out * math.sin(th0*i + th0/2))))
+                    for pad in m.Pads():
+                        pad.SetNet(ni_gnd)
+                    self.board.Add(m)
 
-        # inner
-        if n_mh_in:
+        if n_mh_in > 0:
             th0 = 2*math.pi/n_mh_in
             for i in range(n_mh_in):
                 m = pcbnew.FootprintLoad( fp_lib, fp )
-                m.Reference().SetVisible(False)
-                m.Value().SetVisible(False)
-                m.SetReference('Mi'+str(i))
-                m.SetPosition(
+                if m is not None:
+                    m.SetReference('')
+                    m.SetPosition(
                     self.fpoint( 
                         int(r_mh_in * math.cos(th0*i + th0/2)), 
                         int(r_mh_in * math.sin(th0*i + th0/2))))
-                for pad in m.Pads():
-                    pad.SetNet(ni_gnd)
-                self.board.Add(m)
+                    for pad in m.Pads():
+                        pad.SetNet(ni_gnd)
+                    self.board.Add(m)
 
     def do_thermal_zones(self, r_out, r_nosm_in, r_nosm_out=0, nvias=36):
-        # see refill:
-        # https://forum.kicad.info/t/python-scripting-refill-all-zones/35834
-        # TODO: add cooling fingers (TBD)
-
         ni_gnd = self.board.FindNet("gnd")
-
-        # get our layers right
         ls = pcbnew.LSET()
         for ly in self.lset:
             ls.addLayer(ly)
 
-        # prepare filler
         filler = pcbnew.ZONE_FILLER(self.board)
 
-        # outer zone
         z = pcbnew.ZONE(self.board)
         if self.n_edges == 0:
             cpl = kla.circle_to_polygon( r_out, 100 )
-            cp = []
+            cp =[]
             for c in cpl:
                 cp.append(self.fpoint(c[0],c[1]))
             z.AddPolygon( self.fpoint_vector(cp) )
         elif self.n_edges >= 4:
             ro = int(r_out / math.cos(math.pi/self.n_edges) )
-            p = []
+            p =[]
             p.append( self.fpoint(ro,ro) )
             p.append( self.fpoint(ro,-ro) )
             p.append( self.fpoint(-ro,-ro) )
             p.append( self.fpoint(-ro,ro) )
             z.AddPolygon( self.fpoint_vector(p) )
 
-        # shaft zone
         cpl = kla.circle_to_polygon( self.r_coil_out + 2*self.trk_w, 100 )
-        cp = []
+        cp =[]
         for c in cpl:
             cp.append(self.fpoint(c[0],c[1]))
 
@@ -1143,10 +797,9 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         z.SetPadConnection(pcbnew.ZONE_CONNECTION_FULL)
         self.board.Add(z)
 
-        # inner (shaft) annular
         z = pcbnew.ZONE(self.board)
         cpl = kla.circle_to_polygon( r_nosm_in, 100 )
-        cp = []
+        cp =[]
         for c in cpl:
             cp.append(self.fpoint(c[0],c[1]))
 
@@ -1156,9 +809,6 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
         self.board.Add(z)
 
-
-
-        # no solder mask
         nls = pcbnew.LSET()
         nls.addLayer(pcbnew.F_Mask)
         nls.addLayer(pcbnew.B_Mask)
@@ -1166,22 +816,20 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
         if self.n_edges == 0:
             cpl = kla.circle_to_polygon( r_out, 100 )
-            cp = []
+            cp =[]
             for c in cpl:
                 cp.append(self.fpoint(c[0],c[1]))
             z.AddPolygon( self.fpoint_vector(cp) )
-            #cpl = kla.circle_to_polygon( self.r_mholes + self.trk_w,  100 )
             cpl = kla.circle_to_polygon( r_out - self.w_mnt,  100 )
-            cp = []
+            cp =[]
             for c in cpl:
                 cp.append(self.fpoint(c[0],c[1]))
             z.AddPolygon( self.fpoint_vector(cp) )
 
         elif self.n_edges >= 4:
-
             r2 = int(r_out / math.cos(math.pi/self.n_edges))
             th0 = 2*math.pi/self.n_edges
-            points = []
+            points =[]
             for i in range(self.n_edges):
                 points.append(
                     self.fpoint(
@@ -1189,7 +837,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                         int(r2 * math.sin(th0*i+th0/2))))
             z.AddPolygon( self.fpoint_vector(points) )
             
-            points = []
+            points =[]
             r2 = int((r_out - self.w_mnt) / math.cos(math.pi/self.n_edges))
             for i in range(self.n_edges):
                 points.append(
@@ -1204,7 +852,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
         z = pcbnew.ZONE(self.board)
         cpl = kla.circle_to_polygon(r_nosm_in, 100)
-        cp = []
+        cp =[]
         for c in cpl:
             cp.append(self.fpoint(c[0],c[1]))
 
@@ -1215,35 +863,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
         filler.Fill(self.board.Zones())
 
-
-        # via stitching
-        # drv = (r_out - self.r_mholes) / (self.via_rows+1)
-        # dth = 2*math.pi / nvias
-        # dths = dth/2
-        # for j in range(self.via_rows):
-        #     vr = self.mhor - (j+1)*drv
-        #     vri = rnsi - (j+1)*drv
-        #     for i in range(nvias):
-        #         via = pcbnew.PCB_VIA(self.board)
-        #         via.SetPosition( self.fpoint( int(vr*math.cos(dths+i*dth)), int(vr*math.sin(dths+i*dth))) )
-        #         via.SetDrill( self.d_drill )
-        #         via.SetWidth( self.d_via )
-        #         via.SetNet(ni_gnd)
-        #         self.board.Add(via)
-
-        #         if not i%3:
-        #             via = pcbnew.PCB_VIA(self.board)
-        #             via.SetPosition( self.fpoint( int(vri*math.cos(dths+i*dth)), int(vri*math.sin(dths+i*dth)) ) )
-        #             via.SetDrill( self.d_drill )
-        #             via.SetWidth( self.d_via )
-        #             via.SetNet(ni_gnd)
-        #             self.board.Add(via)
-
-    def do_silkscreen(self, r_in, r_out, n_slots):
-
-        th0 = 2*math.pi/n_slots
-
-        # pcb label
+    def do_silkscreen(self, ro, ri, th):
         pcb_txt = pcbnew.PCB_TEXT(self.board)
         pcb_txt.SetText(
             datetime.today().strftime('%Y%m%d') + 
@@ -1256,8 +876,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         pcb_txt.SetLayer(pcbnew.F_SilkS)
         self.board.Add(pcb_txt)
 
-        # mark active coil ring
-        for r in [r_in, r_out]:
+        for r in [ro,ri]:
             c = pcbnew.PCB_SHAPE(self.board)
             c.SetShape(pcbnew.SHAPE_T_CIRCLE)
             c.SetFilled(False)
@@ -1267,16 +886,16 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             c.SetLayer(pcbnew.F_SilkS)
             self.board.Add(c)
   
-        # slot center
+        th_0 = 2*math.pi/self.n_slots
         la = 0.05
-        for slot in range(n_slots):
+        for p in range(self.n_slots):
             xy_s = self.fpoint( 
-                int( (1+la)*r_in*math.cos(th0*slot)), 
-                int((1+la)*r_in*math.sin(th0*slot))
+                int( (1+la)*ri*math.cos(th_0*p)), 
+                int((1+la)*ri*math.sin(th_0*p))
             )
             xy_e = self.fpoint( 
-                int((1-la)*r_out*math.cos(th0*slot)), 
-                int((1-la)*r_out*math.sin(th0*slot))
+                int((1-la)*ro*math.cos(th_0*p)), 
+                int((1-la)*ro*math.sin(th_0*p))
             )
             c = pcbnew.PCB_SHAPE(self.board)
             c.SetShape(pcbnew.SHAPE_T_SEGMENT)
@@ -1285,72 +904,44 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             c.SetLayer(pcbnew.F_SilkS)
             c.SetWidth( int(0.127*1e6) )
             self.board.Add(c)
-        
-        return
-
 
     def fillet(self, board, t1, t2, r, side=1):
-        """ Generate fillet between two tracks
-
-        Args:
-            board (_type_): board object the tracks belong to
-            t1 (_type_): first track
-            t2 (_type_): second track
-            r (_type_): fillet radius
-            side (_type_): side of the arc to offeset (1:R, -1:L)
-        """
-
         t1_arc = t1.GetClass() == 'PCB_ARC'
         t2_arc = t2.GetClass() == 'PCB_ARC'
 
-        ## find center and trim points
-
         if t1_arc and t2_arc:
-            # TODO: both arcs
             return
         elif t1_arc or t2_arc:
             c = kla.line_arc_center(t1,t2,r,side)
         else:
             c = kla.line_line_center(t1,t2,r)
-            # trim point track1
             l1 = kla.line_points(t1)
             p1 = kla.circle_line_tg( l1, c, r)
-            # trim point track2
             l2 = kla.line_points(t2)
             p2 = kla.circle_line_tg( l2, c, r)
 
-
         if t1_arc:
-            # trim point track1 (arc)
             c1 = t1.GetCenter()
             c1 = np.array([c1.x, c1.y])
             r1 = t1.GetRadius()
             p1 = kla.circle_circle_tg(c,r,c1,r1)
-            # trim point track2 (line)
             l2 = kla.line_points(t2)
             p2 = kla.circle_line_tg(l2,c,r)
-            # mid point
             m = kla.circle_arc_mid(p1,p2,c,r)
         elif t2_arc:
-            # trim point track1 (line)
             l1 = kla.line_points(t1)
             p1 = kla.circle_line_tg(l1,c,r)
-            # trim point track2 (arc)
             c2 = t2.GetCenter()
             c2 = np.array([c2.x, c2.y])
             r2 = t2.GetRadius()
             p2 = kla.circle_circle_tg(c,r, c2, r2)
-            # mid point
             m = kla.circle_arc_mid(p1,p2, c,r)
         else:
-            # arc mid-point
             t1e = t1.GetEnd()
-            l = np.array([c, [t1e.x, t1e.y, 0]])
+            l = np.array([c,[t1e.x, t1e.y, 0]])
             lv = kla.line_vec(l)
             m = c + np.dot(r, lv)
 
-
-        # generate fillet track
         t = pcbnew.PCB_ARC(board)
         t.SetLayer( t1.GetLayer() )
         t.SetWidth( t1.GetWidth() )
@@ -1359,213 +950,57 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         t.SetEnd( self.fpoint(int(p2[0]),int(p2[1])) )
         board.Add(t)
         
-        # trim tracks
         t1.SetEnd( self.fpoint(int(p1[0]),int(p1[1]))  )
         t2.SetStart( self.fpoint(int(p2[0]),int(p2[1]))  )
 
         return t
 
-    def fillet_outline(self, board, a, b, r):
+    def calculate_stats(self, board, net_name="coil", temp=20):
+        rho = 1.77e-8       
+        alpha = 0.00393     
+        l_total = 0.0       
+        r_total_20 = 0.0    
+        
+        for item in board.GetTracks():
+            if item.GetNet().GetNetname() == net_name:
+                length_m = item.GetLength() / self.SCALE / 1000.0
+                width_m = item.GetWidth() / self.SCALE / 1000.0
+                
+                l_total += length_m
+                A = width_m * self.tthick 
+                
+                if A > 0:
+                    r_total_20 += rho * (length_m / A)
+                    
+        phase_len_mm = (l_total / self.phases) * 1000.0
+        phase_r_20 = r_total_20 / self.phases
+        phase_r_temp = phase_r_20 * (1 + alpha * (temp - 20))
+        
+        return phase_len_mm, phase_r_temp
 
-        c = kla.line_line_center(a,b,r)
-        # trim point track1
-        l1 = kla.line_points(a)
-        p1 = kla.circle_line_tg( l1, c, r)
-        # trim point track2
-        l2 = kla.line_points(b)
-        p2 = kla.circle_line_tg( l2, c, r)
-        # arc mid-point
-        ae = a.GetEnd()
-        la = np.array([c, [ae.x, ae.y, 0]])
-        lv = kla.line_vec(la)
-        m = c + np.dot(r, lv)
-
-
-        # generate fillet track
-        f = pcbnew.PCB_SHAPE(board, pcbnew.SHAPE_T_ARC)
-
-        wx.LogWarning(f'{p1[0]} {p1[1]}')
-        f.SetStart( self.fpoint(int(p1[0]),int(p1[1])) )
-        #f.SetMid( self.fpoint(int(m[0]),int(m[1])) )
-        f.SetEnd( self.fpoint(int(p2[0]),int(p2[1])) )
-
-        f.SetLayer(a.GetLayer())
-        f.SetWidth(a.GetWidth())
-        board.Add(f)
-
-        # trim edges
-        a.SetEnd( self.fpoint(int(p1[0]),int(p1[1]))  )
-        b.SetStart( self.fpoint(int(p2[0]),int(p2[1]))  )
-
-    def fillet_outline_old(self, board, a, b, fillet_value):
-        ## borrowed from fillet_helper.py
-        ## https://github.com/tywtyw2002/FilletEdge/blob/master/fillet_helper.py
-
-        # must be cw rotate, swap if ccw rotate
-        theta = 0
-        a_s = a.GetStart()
-        a_e = a.GetEnd()
-        b_s = b.GetStart()
-        b_e = b.GetEnd()
-        a_reverse = 1
-        b_reverse = 1
-        a_set = a.SetStart
-        b_set = b.SetStart
-        co_point = self.fpoint(a_s.x, a_s.y)
-
-        if a_e == b_s or a_e == b_e:
-            co_point = self.fpoint(a_e.x, a_e.y)
-            a_set = a.SetEnd
-            a_reverse = -1
-        elif a_s != b_s and a_s != b_e:
-            wx.LogWarning('Unable to Fillet, 2 lines not share any point.')
-            return
-
-        if b_e == co_point:
-            b_reverse = -1
-            b_set = b.SetEnd
-
-        a_v = self.fpoint(
-            (a.GetEndX() - a.GetStartX()) * a_reverse,
-            -(a.GetEndY() - a.GetStartY()) * a_reverse
-        )
-        b_v = self.fpoint(
-            (b.GetEndX() - b.GetStartX()) * b_reverse,
-            -(b.GetEndY() - b.GetStartY()) * b_reverse
-        )
-
-        theta = a_v.Angle() - b_v.Angle()
-
-        if theta < -math.pi:
-            theta += math.pi * 2
-        elif theta > math.pi:
-            theta -= math.pi * 2
-
-        deg = math.degrees(theta)
-
-        offset = fillet_value
-        if int(deg) != 90 and int(deg) != -90:
-            offset = abs(offset * math.tan((math.pi - theta) / 2))
-
-        a_point = self.fpoint(
-            int(co_point.x + offset * math.cos(a_v.Angle())),
-            int(co_point.y - offset * math.sin(a_v.Angle()))
-        )
-        b_point = self.fpoint(
-            int(co_point.x + offset * math.cos(b_v.Angle())),
-            int(co_point.y - offset * math.sin(b_v.Angle()))
-        )
-
-        a_set(a_point)
-        b_set(b_point)
-
-        # check length
-        if a.GetLength() == 0:
-            board.Remove(a)
-
-        if b.GetLength() == 0:
-            board.Remove(b)
-
-        # set arc
-        s_arc = pcbnew.PCB_SHAPE()
-        s_arc.SetShape(pcbnew.SHAPE_T_ARC)
-
-        c_v = a_v.Resize(1000000) + b_v.Resize(1000000)
-        c_angle = c_v.Angle()
-
-        if offset == fillet_value:
-            # 90 or -90
-            s_arc.SetCenter(self.fpoint(
-                a_point.x + b_point.x - co_point.x,
-                a_point.y + b_point.y - co_point.y
-            ))
-        else:
-            coffset = abs(fillet_value / math.cos((math.pi - theta) / 2))
-            s_arc.SetCenter(self.fpoint(
-                co_point.x + int(coffset * math.cos(c_angle)),
-                co_point.y - int(coffset * math.sin(c_angle))
-            ))
-
-        if deg < 0:
-            s_arc.SetStart(a_point)
-        else:
-            s_arc.SetStart(b_point)
-
-        s_arc.SetArcAngleAndEnd(1800 - abs(deg * 10))
-
-        s_arc.SetLayer(a.GetLayer())
-        s_arc.SetWidth(a.GetWidth())
-
-        board.Add(s_arc)
-
-    ## stats 
-    def stats_length(self, board):
-        tot = 0
-        for track in board.GetTracks():
-            l = track.GetLength()
-            tot += l/self.SCALE
-
-        return tot
-
-    def stats_rlc(self, board, w, t, temp=20):
-        """ Calculate resistance, inductance and capacitance of a track
-        Args:
-            board (_type_): _description_
-            w (_type_): track width
-            t (_type_): track thickness
-            temp (float): ambient temperature
-        """
-
-        # https://www.allaboutcircuits.com/tools/trace-resistance-calculator/
-        # https://www.cirris.com/learning-center/general-testing/special-topics/177-temperature-coefficient-of-copper
-        rho = 1.77e-8       # [ohm/m] copper resistivity @ 20C
-        alpha = 3.99e-2     # [ohm/ohm/C] copper temperature coeff
-
-        L = self.stats_length(board) / 1000
-        A = w*t
-        r = rho * L/A
-        rt = r * (1+alpha*(temp-20))
-
-        # https://resources.system-analysis.cadence.com/blog/msa2021-is-there-a-pcb-trace-inductance-rule-of-thumb
-
-        return rt
-
-
-    # event handlers (buttons)
     def on_close(self, event):
         self.pm.SaveAndUnregister()
         event.Skip()
 
     def on_btn_clear(self, event):
-        #self.logger.info("Cleared existing coils")
-        #logging.shutdown()
-        # TODO: 1) delete all groups, 2) remove nets, 3) other stuff TBD
-        # init buttons state
         if self.group:
             self.group.RemoveAll()
             self.group = None
             self.btn_clear.Enable(False)
-
         event.Skip()
 
     def on_btn_generate(self, event):
-        #self.logger.info("Generate stator coils")
         self.generate()
         event.Skip()
 
-
-    # https://docs.wxpython.org/wx.FileDialog.html
     def on_btn_save(self, event):
-        # persist first
         self.pm.SaveAndUnregister()
         self.pm.RegisterAndRestoreAll(self)
-        # file dialog
         with wx.FileDialog(self, "Save KiMotor preset", wildcard="KMT files (*.kmt)|*.kmt",
                        style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
             fileDialog.SetFilename("kimotor.kmt")
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return   
-            # copy and rename the persist file
             try:
                 origin = self.pf
                 target = fileDialog.GetPath()
@@ -1588,13 +1023,20 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 shutil.copyfile(origin, target)
                 self.pm.SetPersistenceFile(target)
                 self.pm.RegisterAndRestoreAll(self)
-                #os.remove(tmp)
                 
             except IOError:
                 wx.LogError("Cannot open file '%s'." % origin)
 
+    def on_cb_preset(self, event):
+        preset = self.m_cbPreset.GetSelection()
+        if preset == 0:
+            self.m_ctrlTrackWidth.SetValue(0.3)
+        elif preset == 1:
+            self.m_ctrlTrackWidth.SetValue(0.127)
+        elif preset == 1:
+            self.m_ctrlTrackWidth.SetValue(0.127)
+        event.Skip()
 
-    # combobox callbacks 
     def on_cb_outline(self, event):
         if self.m_cbOutline.GetStringSelection() == "None":
             self.m_ctrlDout.Enable(False)
@@ -1611,21 +1053,17 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
     def on_cb_trmtype(self, event):
         pads = self.m_cbTP.GetStringSelection()
-
         if pads == "None":
             self.m_termSize.Enable(False)
-
         elif pads == "THT" or pads == "SMD":
             keys = self.term_db.get(pads).keys()
             for i,k in enumerate(keys):
                 self.m_termSize.SetString(i,k)
             while len(keys) < self.m_termSize.GetCount():
                 self.m_termSize.Delete( self.m_termSize.GetCount()-1 )
-
             self.m_termSize.SetValue( 
                 self.m_termSize.GetString(
                     self.m_termSize.GetCurrentSelection()))
-
             self.m_termSize.Enable(True)
 
         if event is not None:
@@ -1634,10 +1072,6 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
     def on_cb_mholes(self, event):
         event.Skip()
 
-
-    # other callbacks    
     def on_nr_layers(self, event):
         self.n_layers = int(self.m_ctrlLayers.GetValue())
         event.Skip()
-
-    
