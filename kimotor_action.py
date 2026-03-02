@@ -168,6 +168,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
         self.d_via = int(self.m_ctrlViaDia.GetValue() * self.SCALE)   
         self.d_drill = int(self.m_ctrlViaDrill.GetValue() * self.SCALE) 
+        self.d_support_hole = int(self.m_ctrlSupportHoleDia.GetValue() * self.SCALE) if hasattr(self, "m_ctrlSupportHoleDia") else self.d_drill
 
         self.via_rows = 2
         try:
@@ -387,7 +388,11 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             self.lbl_ringR.SetLabel('%.3f' % stats["ring_resistance_total"])
 
             self.btn_clear.Enable(True)
-            self.set_status("Finished")
+            skipped = int(getattr(self, "support_hole_collision_count", 0))
+            if skipped > 0:
+                self.set_status(f"Finished (support holes skipped: {skipped})")
+            else:
+                self.set_status("Finished")
         except Exception as e:
             self.set_status("Failed")
             wx.MessageBox(
@@ -534,16 +539,30 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         return coil_p
 
     def add_through_via(self, position, net=None):
+        return self.add_custom_through_via(position, net=net, drill=self.d_drill, width=self.d_via)
+
+    def add_custom_through_via(self, position, net=None, drill=None, width=None):
         via = pcbnew.PCB_VIA(self.board)
         via.SetViaType(pcbnew.VIATYPE_THROUGH)
         via.SetLayerPair(pcbnew.F_Cu, pcbnew.B_Cu)
         via.SetPosition(position)
-        via.SetDrill(self.d_drill)
-        via.SetWidth(self.d_via)
+        via.SetDrill(self.d_drill if drill is None else drill)
+        via.SetWidth(self.d_via if width is None else width)
         if net is not None:
             via.SetNet(net)
         self.board.Add(via)
         return via
+
+    def add_support_hole(self, position):
+        pad_margin = int(0.25 * self.SCALE)
+        hole_width = max(self.d_support_hole + pad_margin, self.d_support_hole + 1)
+        return self.add_custom_through_via(position, net=None, drill=self.d_support_hole, width=hole_width)
+
+    def hole_collides(self, position, placed_points, min_distance):
+        for pt in placed_points:
+            if math.hypot(pt.x - position.x, pt.y - position.y) < min_distance:
+                return True
+        return False
 
     # =========================================================================
     # PROFESSIONELLES ROUTING: 4 Anchor-Pins, Radial-Lines, Keine Kreuzungen
@@ -555,6 +574,9 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         n_rc = int(self.n_slots / phases) - 1
         if support_via_mode not in (0, 2, 4):
             support_via_mode = 2
+        support_collisions = 0
+        support_pts = []
+        support_min_dist = max(self.d_support_hole + self.trk_space, self.d_support_hole)
 
         # 1. PLATZIERUNG DER ISOLIERTEN STÜTZ-VIAS (Dummy Anchor Pins) AN DEN AUSSENKANTEN
         # Leicht nach innen versetzt, damit sie perfekt im Kupfer der äußersten Spule sitzen
@@ -567,12 +589,32 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 pt_out_a = self.fpoint(int(r_out_via * math.cos(th_c - th_out_off)), int(r_out_via * math.sin(th_c - th_out_off)))
                 pt_out_b = self.fpoint(int(r_out_via * math.cos(th_c + th_out_off)), int(r_out_via * math.sin(th_c + th_out_off)))
                 for pt in [pt_out_a, pt_out_b]:
-                    self.add_through_via(pt, None)
+                    if self.hole_collides(pt, support_pts, support_min_dist):
+                        support_collisions += 1
+                        continue
+                    self.add_support_hole(pt)
+                    support_pts.append(pt)
 
         # 2. BERECHNUNG DES SICHEREN ABSTANDS FÜR DIE SAMMELSCHIENEN (inkl. Via)
-        first_ring_offset = self.d_via if support_via_mode == 4 else 0
+        first_ring_offset = max(self.d_via, self.d_support_hole) if support_via_mode == 4 else 0
         current_radius = self.r_coil_in - (self.d_via / 2.0) - self.ring_space - (self.ring_w / 2.0) - first_ring_offset
         lowest_used_radius = current_radius
+
+        # Mode 4: zusätzliche 2 unverbundene Stützlöcher je Coil nahe den Ringanschlüssen.
+        if support_via_mode == 4:
+            th_in_off = (th0 / 2.0) * 0.55
+            r_inner_support = current_radius + (self.ring_w / 2.0) + self.trk_space + (self.d_support_hole / 2.0)
+            if r_inner_support > 0:
+                for slot in range(self.n_slots):
+                    th_c = slot * th0
+                    pt_in_a = self.fpoint(int(r_inner_support * math.cos(th_c - th_in_off)), int(r_inner_support * math.sin(th_c - th_in_off)))
+                    pt_in_b = self.fpoint(int(r_inner_support * math.cos(th_c + th_in_off)), int(r_inner_support * math.sin(th_c + th_in_off)))
+                    for pt in [pt_in_a, pt_in_b]:
+                        if self.hole_collides(pt, support_pts, support_min_dist):
+                            support_collisions += 1
+                            continue
+                        self.add_support_hole(pt)
+                        support_pts.append(pt)
 
         for p in range(phases):
             # Radius für diesen speziellen Phasenring
@@ -631,16 +673,6 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 arc.SetMid(via_mid)
                 arc.SetEnd(via2_pt)
                 self.board.Add(arc)
-
-                if support_via_mode == 4:
-                    dth = min(0.2, th0 * 0.2)
-                    dvr = self.d_via * 1.2
-                    for t_ang in (th1 - dth, th2 + dth):
-                        dummy_pt = self.fpoint(
-                            int((cri + dvr) * math.cos(t_ang)),
-                            int((cri + dvr) * math.sin(t_ang))
-                        )
-                        self.add_through_via(dummy_pt, None)
 
         # 4. STERNSCHALTUNG (nur für 3-Phasen Motoren)
         if phases > 1:
@@ -732,6 +764,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     m.SetReference( "A" if p==0 else ("B" if p==1 else "C") )
                     self.board.Add(m)
 
+        self.support_hole_collision_count = support_collisions
         return term_radius
 
     def do_outline(self, r_in, r_out, n_edge=0, r_fill=0):

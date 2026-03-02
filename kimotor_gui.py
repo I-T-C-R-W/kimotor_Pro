@@ -436,6 +436,24 @@ class KiMotorGUI ( wx.Frame ):
 
 		sbSizer1.Add( bSizerViaDrill, 1, wx.EXPAND, 5 )
 
+		bSizerSupportHoleDia = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_supportHoleDia = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Support TH hole dia:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_supportHoleDia" )
+		self.lbl_supportHoleDia.Wrap( -1 )
+		bSizerSupportHoleDia.Add( self.lbl_supportHoleDia, 0, wx.ALL, 5 )
+
+		bSizerSupportHoleDia.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.lbl_supportHoleDiaUnit = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"[mm]", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_supportHoleDiaUnit" )
+		self.lbl_supportHoleDiaUnit.Wrap( -1 )
+		bSizerSupportHoleDia.Add( self.lbl_supportHoleDiaUnit, 0, wx.ALL, 5 )
+
+		self.m_ctrlSupportHoleDia = SpinCtrlDoublePersist( sbSizer1.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.Size( 150,20 ), wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_RIGHT|wx.SP_ARROW_KEYS, 0.1, 10, 0.800, 0.05, u"m_ctrlSupportHoleDia" )
+		self.m_ctrlSupportHoleDia.SetDigits( 3 )
+		bSizerSupportHoleDia.Add( self.m_ctrlSupportHoleDia, 0, wx.ALL, 5 )
+
+		sbSizer1.Add( bSizerSupportHoleDia, 1, wx.EXPAND, 5 )
+
 		bSizerSupportVia = wx.BoxSizer( wx.HORIZONTAL )
 
 		self.lbl_supportVia = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Support via mode:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_supportVia" )
