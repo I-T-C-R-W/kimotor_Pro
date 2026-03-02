@@ -243,7 +243,7 @@ class KiMotorGUI ( wx.Frame ):
 
 		bSizer23.Add( ( 0, 0), 1, wx.EXPAND, 5 )
 
-		m_cbSchemeChoices =[ u"1P", u"3P" ]
+		m_cbSchemeChoices =[ u"1P", u"3P", u"3P+N" ]
 		self.m_cbScheme = wx.ComboBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"3P", wx.DefaultPosition, wx.Size( 150,20 ), m_cbSchemeChoices, wx.CB_DROPDOWN|wx.CB_READONLY, wx.DefaultValidator, u"m_cbConnections" )
 		self.m_cbScheme.SetSelection( 1 )
 		bSizer23.Add( self.m_cbScheme, 0, wx.ALIGN_CENTER_HORIZONTAL|wx.ALL, 5 )

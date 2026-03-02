@@ -140,13 +140,20 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             self.n_edges = -1
 
         self.trmtype = self.m_cbTP.GetStringSelection()
-        self.n_term = 2 if (self.m_cbScheme.GetStringSelection() == "1P") else ( 
-            3 if (self.m_cbScheme.GetStringSelection() == "3P") else 4)
+        scheme = self.m_cbScheme.GetStringSelection()
+        if scheme == "1P":
+            self.phases = 1
+            self.n_term = 2
+        elif scheme == "3P+N":
+            self.phases = 3
+            self.n_term = 4
+        else:
+            self.phases = 3
+            self.n_term = 3
         
         self.n_layers = int(self.m_ctrlLayers.GetValue())
         self.lset = self.udpate_lset(self.n_layers)
         self.n_loops  = int(self.m_ctrlLoops.GetValue())
-        self.phases = int(1 if (self.m_cbScheme.GetStringSelection() == "1P") else 3)
         self.n_slots  = int(self.m_ctrlSlots.GetValue())
         
         self.strategy = self.m_cbStrategy.GetSelection()
@@ -163,8 +170,24 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         self.d_drill = int(self.m_ctrlViaDrill.GetValue() * self.SCALE) 
 
         self.via_rows = 2
-        self.support_via_mode = int(self.m_cbSupportViaMode.GetStringSelection())
-        self.fill_inner_gnd = bool(self.m_cbFillInnerGND.GetValue())
+        try:
+            if hasattr(self, "m_cbSupportViaMode"):
+                self.support_via_mode = int(self.m_cbSupportViaMode.GetStringSelection())
+            elif hasattr(self, "m_cbSupportVias"):
+                self.support_via_mode = int(self.m_cbSupportVias.GetStringSelection())
+            else:
+                self.support_via_mode = 2
+        except (ValueError, TypeError):
+            self.support_via_mode = 2
+        if self.support_via_mode not in (0, 2, 4):
+            self.support_via_mode = 2
+
+        if hasattr(self, "m_cbFillInnerGND"):
+            self.fill_inner_gnd = bool(self.m_cbFillInnerGND.GetValue())
+        elif hasattr(self, "m_chkFillInnerGnd"):
+            self.fill_inner_gnd = bool(self.m_chkFillInnerGnd.GetValue())
+        else:
+            self.fill_inner_gnd = True
 
         self.r_fill = int(self.m_ctrlRfill.GetValue() * self.SCALE)         
         self.o_fill = int(self.m_ctrlFilletRadius.GetValue() * self.SCALE)  
@@ -190,9 +213,12 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             self.btn_clear.Enable(True)
 
     def set_status(self, text):
+        ts = datetime.now().strftime("%H:%M:%S")
         if hasattr(self, "lbl_status") and self.lbl_status:
             self.lbl_status.SetLabel(str(text))
             self.lbl_status.GetParent().Layout()
+        if hasattr(self, "m_txtStatus") and self.m_txtStatus:
+            self.m_txtStatus.SetValue(f"[{ts}] {text}")
 
     def validate_parameters(self):
         errors = []
@@ -510,6 +536,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
     def add_through_via(self, position, net=None):
         via = pcbnew.PCB_VIA(self.board)
         via.SetViaType(pcbnew.VIATYPE_THROUGH)
+        via.SetLayerPair(pcbnew.F_Cu, pcbnew.B_Cu)
         via.SetPosition(position)
         via.SetDrill(self.d_drill)
         via.SetWidth(self.d_via)
@@ -526,18 +553,21 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         phases = self.phases
         th0 = 2 * math.pi / self.n_slots
         n_rc = int(self.n_slots / phases) - 1
+        if support_via_mode not in (0, 2, 4):
+            support_via_mode = 2
 
         # 1. PLATZIERUNG DER ISOLIERTEN STÜTZ-VIAS (Dummy Anchor Pins) AN DEN AUSSENKANTEN
         # Leicht nach innen versetzt, damit sie perfekt im Kupfer der äußersten Spule sitzen
         r_out_via = self.r_coil_out - self.trk_w - self.d_via/2.0
         th_out_off = (th0 / 2.0) * 0.85
         
-        for slot in range(self.n_slots):
-            th_c = slot * th0
-            pt_out_a = self.fpoint(int(r_out_via * math.cos(th_c - th_out_off)), int(r_out_via * math.sin(th_c - th_out_off)))
-            pt_out_b = self.fpoint(int(r_out_via * math.cos(th_c + th_out_off)), int(r_out_via * math.sin(th_c + th_out_off)))
-            for pt in[pt_out_a, pt_out_b]:
-                self.add_through_via(pt, None)
+        if support_via_mode >= 2:
+            for slot in range(self.n_slots):
+                th_c = slot * th0
+                pt_out_a = self.fpoint(int(r_out_via * math.cos(th_c - th_out_off)), int(r_out_via * math.sin(th_c - th_out_off)))
+                pt_out_b = self.fpoint(int(r_out_via * math.cos(th_c + th_out_off)), int(r_out_via * math.sin(th_c + th_out_off)))
+                for pt in [pt_out_a, pt_out_b]:
+                    self.add_through_via(pt, None)
 
         # 2. BERECHNUNG DES SICHEREN ABSTANDS FÜR DIE SAMMELSCHIENEN (inkl. Via)
         first_ring_offset = self.d_via if support_via_mode == 4 else 0
@@ -997,7 +1027,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 if A > 0:
                     r_part = rho * (length_m / A)
                     r_total_20 += r_part
-                    if item.GetWidth() == self.ring_w:
+                    if item.GetLayer() == pcbnew.F_Cu and item.GetWidth() == self.ring_w:
                         l_ring += length_m
                         r_ring_20 += r_part
 
