@@ -589,6 +589,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         support_collisions = 0
         support_pts = []
         support_min_dist = max(self.d_support_hole + self.trk_space, self.d_support_hole)
+        phase_tap_pts = [None] * phases
 
         # 1. PLATZIERUNG DER ISOLIERTEN STÜTZ-THT-LÖCHER AUSSERHALB DER SPULEN
         # support_via_mode:
@@ -606,11 +607,6 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     self.fpoint(int(r_out_support * math.cos(th_c - th_out_off_a)), int(r_out_support * math.sin(th_c - th_out_off_a))),
                     self.fpoint(int(r_out_support * math.cos(th_c + th_out_off_a)), int(r_out_support * math.sin(th_c + th_out_off_a))),
                 ]
-                if support_via_mode == 4:
-                    support_pts_slot.extend([
-                        self.fpoint(int(r_out_support * math.cos(th_c - th_out_off_b)), int(r_out_support * math.sin(th_c - th_out_off_b))),
-                        self.fpoint(int(r_out_support * math.cos(th_c + th_out_off_b)), int(r_out_support * math.sin(th_c + th_out_off_b))),
-                    ])
 
                 for pt in support_pts_slot:
                     if self.hole_collides(pt, support_pts, support_min_dist):
@@ -628,6 +624,23 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             first_ring_offset = max(self.d_via, self.d_support_hole)
         current_radius = self.r_coil_in - (self.d_via / 2.0) - self.ring_space - (self.ring_w / 2.0) - first_ring_offset
         lowest_used_radius = current_radius
+
+        # Mode 4: zusätzlich 2 innere unverbundene Stützlöcher je Slot (nahe Ringanschlüssen).
+        if support_via_mode == 4:
+            r_in_support = current_radius + (self.ring_w / 2.0) + self.trk_space + (self.d_support_hole / 2.0)
+            th_in_off = (th0 / 2.0) * 0.45
+            for slot in range(self.n_slots):
+                th_c = slot * th0
+                support_pts_slot = [
+                    self.fpoint(int(r_in_support * math.cos(th_c - th_in_off)), int(r_in_support * math.sin(th_c - th_in_off))),
+                    self.fpoint(int(r_in_support * math.cos(th_c + th_in_off)), int(r_in_support * math.sin(th_c + th_in_off))),
+                ]
+                for pt in support_pts_slot:
+                    if self.hole_collides(pt, support_pts, support_min_dist):
+                        support_collisions += 1
+                        continue
+                    self.add_support_hole(pt)
+                    support_pts.append(pt)
 
         for p in range(phases):
             # Radius für diesen speziellen Phasenring
@@ -686,6 +699,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 arc.SetMid(via_mid)
                 arc.SetEnd(via2_pt)
                 self.board.Add(arc)
+                phase_tap_pts[p] = via2_pt
 
         # 4. STERNSCHALTUNG (nur für 3-Phasen Motoren)
         neutral_tap = None
@@ -695,7 +709,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             star_pts =[]
             
             for p in range(phases):
-                c_end = coils[p][-1][1]
+                c_end = phase_tap_pts[p] if phase_tap_pts[p] is not None else coils[p][-1][1]
                 
                 # Eck-Via für die allerletzte Spule setzen
                 self.add_through_via(c_end, net_coil)
@@ -748,10 +762,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     c_start = coils[0][-1][1]
             else:
                 if p < phases:
-                    # Terminals for A/B/C are spread over the circumference instead of being adjacent.
-                    n_phase_coils = len(coils[p])
-                    idx = int((p * n_phase_coils) / phases) % max(n_phase_coils, 1)
-                    c_start = coils[p][idx][0]
+                    c_start = phase_tap_pts[p] if phase_tap_pts[p] is not None else coils[p][0][0]
                 else:
                     # 3P+N: optional 4th terminal taps the star/neutral point.
                     c_start = neutral_tap if neutral_tap is not None else coils[0][-1][1]
