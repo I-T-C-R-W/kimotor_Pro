@@ -393,6 +393,18 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 self.set_status(f"Finished (support holes skipped: {skipped})")
             else:
                 self.set_status("Finished")
+            if hasattr(self, "m_txtStatus") and self.m_txtStatus:
+                self.m_txtStatus.SetValue(
+                    "Finished\n"
+                    f"Length total: {stats['total_length_mm']:.2f} mm\n"
+                    f"Length / phase: {stats['phase_len_mm']:.2f} mm\n"
+                    f"Length / coil: {stats['coil_length_per_coil_mm']:.2f} mm\n"
+                    f"Length rings total: {stats['ring_length_mm']:.2f} mm\n"
+                    f"R total: {stats['total_resistance']:.4f} ohm\n"
+                    f"R / phase: {stats['phase_r_temp']:.4f} ohm\n"
+                    f"R / coil: {stats['coil_resistance_per_coil']:.4f} ohm\n"
+                    f"R rings total: {stats['ring_resistance_total']:.4f} ohm"
+                )
         except Exception as e:
             self.set_status("Failed")
             wx.MessageBox(
@@ -1075,6 +1087,8 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         coil_r_temp = r_coil_20 * (1 + alpha * (temp - 20))
         coil_res_per_coil = coil_r_temp / max(self.n_slots, 1)
 
+        coils_count = max(self.n_slots, 1)
+        phases_count = max(self.phases, 1)
         return {
             "total_length_mm": l_total * 1000.0,
             "phase_len_mm": phase_len_mm,
@@ -1084,6 +1098,9 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             "ring_resistance_total": ring_r_temp,
             "coil_length_mm": l_coil * 1000.0,
             "ring_length_mm": l_ring * 1000.0,
+            "coil_length_per_coil_mm": (l_coil * 1000.0) / coils_count,
+            "coil_resistance_total": coil_r_temp,
+            "ring_resistance_per_phase": ring_r_temp / phases_count,
         }
 
     def calculate_stats(self, board, net_name="coil", temp=20):
@@ -1158,7 +1175,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             self.m_ctrlFilletRadius.Enable(False)
         else:
             self.m_ctrlDout.Enable(True)
-            self.m_ctrlFilletRadius.Enable(False)
+            self.m_ctrlFilletRadius.Enable(True)
 
         if event is not None:
             event.Skip()
