@@ -590,17 +590,29 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         support_pts = []
         support_min_dist = max(self.d_support_hole + self.trk_space, self.d_support_hole)
 
-        # 1. PLATZIERUNG DER ISOLIERTEN STÜTZ-VIAS (Dummy Anchor Pins) AN DEN AUSSENKANTEN
-        # Leicht nach innen versetzt, damit sie perfekt im Kupfer der äußersten Spule sitzen
-        r_out_via = self.r_coil_out - self.trk_w - self.d_via/2.0
-        th_out_off = (th0 / 2.0) * 0.85
+        # 1. PLATZIERUNG DER ISOLIERTEN STÜTZ-THT-LÖCHER AUSSERHALB DER SPULEN
+        # support_via_mode:
+        # 0 = keine Stützlöcher
+        # 2 = zwei äußere Stützlöcher je Slot
+        # 4 = vier äußere Stützlöcher je Slot
+        r_out_support = self.r_coil_out + self.trk_space + self.trk_w + (self.d_support_hole / 2.0)
+        th_out_off_a = (th0 / 2.0) * 0.78
+        th_out_off_b = (th0 / 2.0) * 0.48
         
         if support_via_mode >= 2:
             for slot in range(self.n_slots):
                 th_c = slot * th0
-                pt_out_a = self.fpoint(int(r_out_via * math.cos(th_c - th_out_off)), int(r_out_via * math.sin(th_c - th_out_off)))
-                pt_out_b = self.fpoint(int(r_out_via * math.cos(th_c + th_out_off)), int(r_out_via * math.sin(th_c + th_out_off)))
-                for pt in [pt_out_a, pt_out_b]:
+                support_pts_slot = [
+                    self.fpoint(int(r_out_support * math.cos(th_c - th_out_off_a)), int(r_out_support * math.sin(th_c - th_out_off_a))),
+                    self.fpoint(int(r_out_support * math.cos(th_c + th_out_off_a)), int(r_out_support * math.sin(th_c + th_out_off_a))),
+                ]
+                if support_via_mode == 4:
+                    support_pts_slot.extend([
+                        self.fpoint(int(r_out_support * math.cos(th_c - th_out_off_b)), int(r_out_support * math.sin(th_c - th_out_off_b))),
+                        self.fpoint(int(r_out_support * math.cos(th_c + th_out_off_b)), int(r_out_support * math.sin(th_c + th_out_off_b))),
+                    ])
+
+                for pt in support_pts_slot:
                     if self.hole_collides(pt, support_pts, support_min_dist):
                         support_collisions += 1
                         continue
@@ -608,25 +620,14 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     support_pts.append(pt)
 
         # 2. BERECHNUNG DES SICHEREN ABSTANDS FÜR DIE SAMMELSCHIENEN (inkl. Via)
-        first_ring_offset = max(self.d_via, self.d_support_hole) if support_via_mode == 4 else 0
+        if support_via_mode == 0:
+            first_ring_offset = 0
+        elif support_via_mode == 2:
+            first_ring_offset = int(0.5 * max(self.d_via, self.d_support_hole))
+        else:
+            first_ring_offset = max(self.d_via, self.d_support_hole)
         current_radius = self.r_coil_in - (self.d_via / 2.0) - self.ring_space - (self.ring_w / 2.0) - first_ring_offset
         lowest_used_radius = current_radius
-
-        # Mode 4: zusätzliche 2 unverbundene Stützlöcher je Coil nahe den Ringanschlüssen.
-        if support_via_mode == 4:
-            th_in_off = (th0 / 2.0) * 0.55
-            r_inner_support = current_radius + (self.ring_w / 2.0) + self.trk_space + (self.d_support_hole / 2.0)
-            if r_inner_support > 0:
-                for slot in range(self.n_slots):
-                    th_c = slot * th0
-                    pt_in_a = self.fpoint(int(r_inner_support * math.cos(th_c - th_in_off)), int(r_inner_support * math.sin(th_c - th_in_off)))
-                    pt_in_b = self.fpoint(int(r_inner_support * math.cos(th_c + th_in_off)), int(r_inner_support * math.sin(th_c + th_in_off)))
-                    for pt in [pt_in_a, pt_in_b]:
-                        if self.hole_collides(pt, support_pts, support_min_dist):
-                            support_collisions += 1
-                            continue
-                        self.add_support_hole(pt)
-                        support_pts.append(pt)
 
         for p in range(phases):
             # Radius für diesen speziellen Phasenring
