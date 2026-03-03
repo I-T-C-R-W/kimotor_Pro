@@ -493,6 +493,11 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_chkFillInnerGnd = self.m_cbFillInnerGND
 		sbSizer1.Add( self.m_cbFillInnerGND, 0, wx.ALL, 5 )
 
+		self.m_cbFillOuterGND = wx.CheckBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Fill outer area with GND", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"m_cbFillOuterGND" )
+		self.m_cbFillOuterGND.SetValue( True ) 
+		self.m_chkFillOuterGnd = self.m_cbFillOuterGND
+		sbSizer1.Add( self.m_cbFillOuterGND, 0, wx.ALL, 5 )
+
 		bSizer271 = wx.BoxSizer( wx.HORIZONTAL )
 
 		self.lbl_refresh_time131122 = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Terminal pads:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_refresh_time1311" )

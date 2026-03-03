@@ -190,6 +190,12 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             self.fill_inner_gnd = bool(self.m_chkFillInnerGnd.IsChecked() if hasattr(self.m_chkFillInnerGnd, "IsChecked") else self.m_chkFillInnerGnd.GetValue())
         else:
             self.fill_inner_gnd = True
+        if hasattr(self, "m_cbFillOuterGND"):
+            self.fill_outer_gnd = bool(self.m_cbFillOuterGND.IsChecked() if hasattr(self.m_cbFillOuterGND, "IsChecked") else self.m_cbFillOuterGND.GetValue())
+        elif hasattr(self, "m_chkFillOuterGnd"):
+            self.fill_outer_gnd = bool(self.m_chkFillOuterGnd.IsChecked() if hasattr(self.m_chkFillOuterGnd, "IsChecked") else self.m_chkFillOuterGnd.GetValue())
+        else:
+            self.fill_outer_gnd = True
 
         self.r_fill = int(self.m_ctrlRfill.GetValue() * self.SCALE)         
         self.o_fill = int(self.m_ctrlFilletRadius.GetValue() * self.SCALE)  
@@ -364,7 +370,8 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 self.do_thermal_zones(
                     self.r_out,
                     cri_thermal,
-                    fill_inner_area_gnd=self.fill_inner_gnd)
+                    fill_inner_area_gnd=self.fill_inner_gnd,
+                    fill_outer_area_gnd=self.fill_outer_gnd)
             
             self.do_silkscreen(self.r_coil_out + self.trk_w, self.r_coil_in, self.th0)
 
@@ -1251,7 +1258,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                         pad.SetNet(ni_gnd)
                     self.board.Add(m)
 
-    def do_thermal_zones(self, r_out, r_nosm_in, r_nosm_out=0, nvias=36, fill_inner_area_gnd=True):
+    def do_thermal_zones(self, r_out, r_nosm_in, r_nosm_out=0, nvias=36, fill_inner_area_gnd=True, fill_outer_area_gnd=True):
         ni_gnd = self.board.FindNet("gnd")
         # Remove previous generated GND zones so checkbox state is applied
         # deterministically on each new generation run.
@@ -1273,29 +1280,30 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
         filler = pcbnew.ZONE_FILLER(self.board)
 
-        z = pcbnew.ZONE(self.board)
-        if self.n_edges == 0:
-            cpl = kla.circle_to_polygon( r_out, 100 )
+        if fill_outer_area_gnd:
+            z = pcbnew.ZONE(self.board)
+            if self.n_edges == 0:
+                cpl = kla.circle_to_polygon( r_out, 100 )
+                cp =[]
+                for c in cpl:
+                    cp.append(self.fpoint(c[0],c[1]))
+                z.AddPolygon( self.fpoint_vector(cp) )
+            elif self.n_edges >= 4:
+                p = self._outline_poly_points(r_out, self.n_edges)
+                z.AddPolygon(self.fpoint_vector(p))
+
+            cpl = kla.circle_to_polygon( self.r_coil_out + 2*self.trk_w, 100 )
             cp =[]
             for c in cpl:
                 cp.append(self.fpoint(c[0],c[1]))
+
             z.AddPolygon( self.fpoint_vector(cp) )
-        elif self.n_edges >= 4:
-            p = self._outline_poly_points(r_out, self.n_edges)
-            z.AddPolygon(self.fpoint_vector(p))
-
-        cpl = kla.circle_to_polygon( self.r_coil_out + 2*self.trk_w, 100 )
-        cp =[]
-        for c in cpl:
-            cp.append(self.fpoint(c[0],c[1]))
-
-        z.AddPolygon( self.fpoint_vector(cp) )
-        z.SetLayerSet(ls)
-        z.SetNet(ni_gnd)
-        z.SetLocalClearance( self.trk_w )
-        z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
-        z.SetPadConnection(pcbnew.ZONE_CONNECTION_FULL)
-        self.board.Add(z)
+            z.SetLayerSet(ls)
+            z.SetNet(ni_gnd)
+            z.SetLocalClearance( self.trk_w )
+            z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
+            z.SetPadConnection(pcbnew.ZONE_CONNECTION_FULL)
+            self.board.Add(z)
 
         if fill_inner_area_gnd:
             z = pcbnew.ZONE(self.board)
@@ -1313,32 +1321,33 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         nls = pcbnew.LSET()
         nls.addLayer(pcbnew.F_Mask)
         nls.addLayer(pcbnew.B_Mask)
-        z = pcbnew.ZONE(self.board)
+        if fill_outer_area_gnd:
+            z = pcbnew.ZONE(self.board)
 
-        if self.n_edges == 0:
-            cpl = kla.circle_to_polygon( r_out, 100 )
-            cp =[]
-            for c in cpl:
-                cp.append(self.fpoint(c[0],c[1]))
-            z.AddPolygon( self.fpoint_vector(cp) )
-            cpl = kla.circle_to_polygon( r_out - self.w_mnt,  100 )
-            cp =[]
-            for c in cpl:
-                cp.append(self.fpoint(c[0],c[1]))
-            z.AddPolygon( self.fpoint_vector(cp) )
+            if self.n_edges == 0:
+                cpl = kla.circle_to_polygon( r_out, 100 )
+                cp =[]
+                for c in cpl:
+                    cp.append(self.fpoint(c[0],c[1]))
+                z.AddPolygon( self.fpoint_vector(cp) )
+                cpl = kla.circle_to_polygon( r_out - self.w_mnt,  100 )
+                cp =[]
+                for c in cpl:
+                    cp.append(self.fpoint(c[0],c[1]))
+                z.AddPolygon( self.fpoint_vector(cp) )
 
-        elif self.n_edges >= 4:
-            points_outer = self._outline_poly_points(r_out, self.n_edges)
-            z.AddPolygon(self.fpoint_vector(points_outer))
+            elif self.n_edges >= 4:
+                points_outer = self._outline_poly_points(r_out, self.n_edges)
+                z.AddPolygon(self.fpoint_vector(points_outer))
 
-            r_inner = r_out - self.w_mnt
-            if r_inner > 0:
-                points_inner = self._outline_poly_points(r_inner, self.n_edges)
-                z.AddPolygon(self.fpoint_vector(points_inner))
+                r_inner = r_out - self.w_mnt
+                if r_inner > 0:
+                    points_inner = self._outline_poly_points(r_inner, self.n_edges)
+                    z.AddPolygon(self.fpoint_vector(points_inner))
 
-        z.SetLayerSet(nls)
-        z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
-        self.board.Add(z)
+            z.SetLayerSet(nls)
+            z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
+            self.board.Add(z)
 
         if fill_inner_area_gnd:
             z = pcbnew.ZONE(self.board)
