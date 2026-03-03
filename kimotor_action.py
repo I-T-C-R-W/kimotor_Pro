@@ -449,6 +449,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
         actual_start = None
         actual_end = None
+        skipped_inner_bridge = False
 
         for seg in range(nseg):
             ps = self.fpoint(int(mpt[ip][0,0]), int(mpt[ip][0,1]))
@@ -467,11 +468,12 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             # Remove only the inner bridge on terminal layers.
             # This is geometric, so it won't drop an outer coil segment by index mismatch.
             if (is_first_layer or is_last_layer):
-                if abs(d_s - self.r_coil_in) < self.SCALE * 0.5 and abs(d_e - self.r_coil_in) < self.SCALE * 0.5:
+                if (not skipped_inner_bridge) and abs(d_s - self.r_coil_in) < self.SCALE * 0.5 and abs(d_e - self.r_coil_in) < self.SCALE * 0.5:
                     # Break fillet chain when the inner bridge is intentionally removed.
                     # Otherwise the next segment is filleted against a non-adjacent segment
                     # and we lose one visible coil segment.
                     t0 = None
+                    skipped_inner_bridge = True
                     continue
 
             if actual_start is None:
