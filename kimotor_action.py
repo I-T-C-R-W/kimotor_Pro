@@ -1153,6 +1153,19 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
     def do_thermal_zones(self, r_out, r_nosm_in, r_nosm_out=0, nvias=36, fill_inner_area_gnd=True):
         ni_gnd = self.board.FindNet("gnd")
+        # Remove previous generated GND zones so checkbox state is applied
+        # deterministically on each new generation run.
+        zones_to_remove = []
+        for z in self.board.Zones():
+            try:
+                net = z.GetNet()
+            except Exception:
+                net = None
+            if net is not None and net.GetNetname() == "gnd":
+                zones_to_remove.append(z)
+        for z in zones_to_remove:
+            self.board.Remove(z)
+
         ls = pcbnew.LSET()
         for ly in self.lset:
             ls.addLayer(ly)
@@ -1467,7 +1480,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             self.m_ctrlFilletRadius.Enable(False)
         elif self.m_cbOutline.GetStringSelection() == "Circle":
             self.m_ctrlDout.Enable(True)
-            self.m_ctrlFilletRadius.Enable(False)
+            self.m_ctrlFilletRadius.Enable(True)
         else:
             self.m_ctrlDout.Enable(True)
             self.m_ctrlFilletRadius.Enable(True)
