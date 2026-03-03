@@ -2,7 +2,8 @@
 
 Dieses Repo ist ein Fork mit umfangreichen Anpassungen an Routing, GUI und Validierung.
 
-## Umgesetzt seit Fork (Fixes/Änderungen)
+<img width="1552" height="1787" alt="test57" src="https://github.com/user-attachments/assets/868c92da-4f4e-4a39-ba0a-b7de5e4b57b5" />
+
 
 - Robustere Schema-/Phasenlogik:
   - `1P`, `3P`, `3P+N` mit Fallback-Handling.
