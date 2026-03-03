@@ -1627,6 +1627,10 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 wx.LogError("Cannot open file '%s'." % origin)
 
     def on_cb_preset(self, event):
+        if not hasattr(self, "m_cbPreset"):
+            if event is not None:
+                event.Skip()
+            return
         preset = self.m_cbPreset.GetSelection()
         if preset == 0:
             self.m_ctrlTrackWidth.SetValue(0.3)

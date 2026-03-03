@@ -310,22 +310,6 @@ class KiMotorGUI ( wx.Frame ):
 
 		sbElecMotor.Add( bSizer214, 0, wx.EXPAND, 5 )
 
-		bSizer2121 = wx.BoxSizer( wx.HORIZONTAL )
-
-		self.lbl_refresh_time121 = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"PCB preset:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_refresh_time121" )
-		self.lbl_refresh_time121.Wrap( -1 )
-		bSizer2121.Add( self.lbl_refresh_time121, 0, wx.ALL, 5 )
-
-		bSizer2121.Add( ( 0, 0), 1, wx.EXPAND, 5 )
-
-		m_cbPresetChoices =[ u"Custom", u"JLCPCB, 1-2L", u"JLCPCB, 4-6L" ]
-		self.m_cbPreset = wx.ComboBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"JLCPCB, 6L", wx.DefaultPosition, wx.Size( 150,20 ), m_cbPresetChoices, 0, wx.DefaultValidator, u"m_cbPreset" )
-		self.m_cbPreset.SetSelection( 2 )
-		self.m_cbPreset.Enable( False )
-		bSizer2121.Add( self.m_cbPreset, 0, wx.ALL, 5 )
-
-		sbElecRouting.Add( bSizer2121, 0, wx.EXPAND, 5 )
-
 		bSizer212 = wx.BoxSizer( wx.HORIZONTAL )
 
 		self.lbl_refresh_time12 = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"PCB layers:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_refresh_time12" )
@@ -687,6 +671,15 @@ class KiMotorGUI ( wx.Frame ):
 
 		bSizerMainRow.Add( sbSizer111, 10, wx.EXPAND|wx.ALL, 6 )
 
+		sbSizerStatus = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Status" ), wx.VERTICAL )
+
+		self.lbl_status = wx.StaticText( sbSizerStatus.GetStaticBox(), wx.ID_ANY, u"Ready", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_status" )
+		self.lbl_status.Wrap( -1 )
+		sbSizerStatus.Add( self.lbl_status, 0, wx.ALL, 5 )
+
+		self.m_txtStatus = wx.TextCtrl( sbSizerStatus.GetStaticBox(), wx.ID_ANY, u"Ready.", wx.DefaultPosition, wx.Size( -1,60 ), wx.TE_MULTILINE|wx.TE_READONLY|wx.BORDER_SIMPLE, wx.DefaultValidator, u"m_txtStatus" )
+		sbSizerStatus.Add( self.m_txtStatus, 1, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 5 )
+
 		bSizer3 = wx.BoxSizer( wx.HORIZONTAL )
 
 		self.btn_load = wx.Button( self, wx.ID_OK, u"Load", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"btn_ok" )
@@ -702,21 +695,14 @@ class KiMotorGUI ( wx.Frame ):
 		self.btn_clear.Hide()
 		bSizer3.Add( self.btn_clear, 0, wx.ALL, 5 )
 
+		bSizer3.Add( sbSizerStatus, 1, wx.EXPAND|wx.LEFT|wx.RIGHT, 6 )
+
+		bSizer3.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
 		self.btn_ok = wx.Button( self, wx.ID_OK, u"Generate", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"btn_ok" )
 		bSizer3.Add( self.btn_ok, 0, wx.ALIGN_CENTER_VERTICAL|wx.ALIGN_RIGHT, 5 )
 
 		bSizer5.Add( bSizer3, 0, wx.EXPAND|wx.TOP, 5 )
-
-		sbSizerStatus = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Status" ), wx.VERTICAL )
-
-		self.lbl_status = wx.StaticText( sbSizerStatus.GetStaticBox(), wx.ID_ANY, u"Ready", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_status" )
-		self.lbl_status.Wrap( -1 )
-		sbSizerStatus.Add( self.lbl_status, 0, wx.ALL, 5 )
-
-		self.m_txtStatus = wx.TextCtrl( sbSizerStatus.GetStaticBox(), wx.ID_ANY, u"Ready.", wx.DefaultPosition, wx.Size( -1,60 ), wx.TE_MULTILINE|wx.TE_READONLY|wx.BORDER_SIMPLE, wx.DefaultValidator, u"m_txtStatus" )
-		sbSizerStatus.Add( self.m_txtStatus, 1, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 5 )
-
-		bSizerMainRow.Add( sbSizerStatus, 6, wx.EXPAND|wx.ALL, 6 )
 
 		# Visual cleanup: emphasize section blocks with bold titles and clear borders.
 		def _style_staticbox(box):
@@ -752,10 +738,10 @@ class KiMotorGUI ( wx.Frame ):
 			_reset_desc_font(_sb.GetStaticBox())
 
 		# Keep readable label area in the two input-heavy columns.
-		sbSizer2.GetStaticBox().SetMinSize(wx.Size(500, -1))
-		sbSizer1.GetStaticBox().SetMinSize(wx.Size(500, -1))
-		sbSizer111.GetStaticBox().SetMinSize(wx.Size(380, -1))
-		sbSizerStatus.GetStaticBox().SetMinSize(wx.Size(280, -1))
+		sbSizer2.GetStaticBox().SetMinSize(wx.Size(520, -1))
+		sbSizer1.GetStaticBox().SetMinSize(wx.Size(520, -1))
+		sbSizer111.GetStaticBox().SetMinSize(wx.Size(420, -1))
+		sbSizerStatus.GetStaticBox().SetMinSize(wx.Size(340, -1))
 
 		# Free horizontal space for labels: shrink wide value widgets recursively.
 		def _shrink_desc_inputs(win):
@@ -784,7 +770,6 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_cbMountSize.Bind( wx.EVT_TEXT, self.on_cb_mholes )
 		self.m_cbScheme.Bind( wx.EVT_TEXT, self.on_cb_connections )
 		self.m_cbStrategy.Bind( wx.EVT_TEXT, self.on_cb_outline )
-		self.m_cbPreset.Bind( wx.EVT_TEXT, self.on_cb_preset )
 		self.m_ctrlLayers.Bind( wx.EVT_SPINCTRLDOUBLE, self.on_nr_layers )
 		self.m_cbTP.Bind( wx.EVT_TEXT, self.on_cb_trmtype )
 		self.m_termSize.Bind( wx.EVT_TEXT, self.on_cb_connections )
