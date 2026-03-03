@@ -468,6 +468,10 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             # This is geometric, so it won't drop an outer coil segment by index mismatch.
             if (is_first_layer or is_last_layer):
                 if abs(d_s - self.r_coil_in) < self.SCALE * 0.5 and abs(d_e - self.r_coil_in) < self.SCALE * 0.5:
+                    # Break fillet chain when the inner bridge is intentionally removed.
+                    # Otherwise the next segment is filleted against a non-adjacent segment
+                    # and we lose one visible coil segment.
+                    t0 = None
                     continue
 
             if actual_start is None:
