@@ -704,16 +704,21 @@ class KiMotorGUI ( wx.Frame ):
 		for _sb in (sbSizer2, sbSizer1, sbSizer111, sbSizerStatus):
 			_style_staticbox(_sb.GetStaticBox())
 
-		# Restore normal font on all children to prevent label truncation caused
-		# by inherited bold fonts on some GTK themes.
+		# Restore normal font recursively inside each static box to prevent
+		# inherited bold text and clipped labels on GTK themes.
 		_normal_font = self.GetFont()
-		for _c in self.GetChildren():
-			if not isinstance(_c, wx.StaticBox):
-				_c.SetOwnFont(_normal_font)
-				try:
-					_c.InvalidateBestSize()
-				except Exception:
-					pass
+		def _reset_desc_font(win):
+			for _child in win.GetChildren():
+				if not isinstance(_child, wx.StaticBox):
+					_child.SetOwnFont(_normal_font)
+					try:
+						_child.InvalidateBestSize()
+					except Exception:
+						pass
+				_reset_desc_font(_child)
+
+		for _sb in (sbSizer2, sbSizer1, sbSizer111, sbSizerStatus):
+			_reset_desc_font(_sb.GetStaticBox())
 
 		# Keep readable label area in the two input-heavy columns.
 		sbSizer2.GetStaticBox().SetMinSize(wx.Size(500, -1))
