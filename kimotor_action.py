@@ -968,6 +968,13 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             else:
                 terminal_starts = [c0, c1]
                 terminal_angles = [cand_angles[1], cand_angles[0]]
+        elif phases == 3 and self.n_term == 3:
+            # Restore known-good 3P behavior:
+            # phase terminals come from slots 0/1/2 (grouped area), no remapping.
+            for pidx in range(3):
+                c = get_slot_start(pidx, pidx)
+                terminal_starts.append(c)
+                terminal_angles.append(math.atan2(c.y, c.x))
         else:
             # User preference: 3P terminals grouped in one local cluster (not 120deg separated).
             phase_starts = []
