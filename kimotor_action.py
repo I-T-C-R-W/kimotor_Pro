@@ -919,7 +919,25 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
         # 5. FINALE TERMINAL-ANSCHLÜSSE (Zur Platine oder Kabel)
         term_radius = lowest_used_radius - self.term_offset
-        one_p_term_angle0 = None
+        n_phase_coils = int(self.n_slots / phases) if phases > 0 else 0
+
+        def select_phase_terminal_slot(phase_idx):
+            # Spread A/B/C around the circle by choosing, within each phase set,
+            # the slot nearest to the ideal phase angle.
+            if phases <= 1 or n_phase_coils <= 0:
+                return phase_idx
+            target = (2.0 * math.pi * phase_idx) / phases
+            best_slot = phase_idx
+            best_err = None
+            for k in range(n_phase_coils):
+                slot = phase_idx + k * phases
+                ang = slot * th0
+                err = abs(self._angle_diff(ang, target))
+                if best_err is None or err < best_err:
+                    best_err = err
+                    best_slot = slot
+            return best_slot
+
         for p in range(self.n_term):
             if phases == 1:
                 if p == 0:
@@ -929,8 +947,8 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     c_start = self.coil_slot_pins[last_slot_1p][1] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[last_slot_1p] else coils[0][-1][1]
             else:
                 if p < phases:
-                    first_slot = p
-                    c_start = self.coil_slot_pins[first_slot][0] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[first_slot] else coils[p][0][0]
+                    phase_slot = select_phase_terminal_slot(p)
+                    c_start = self.coil_slot_pins[phase_slot][0] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[phase_slot] else coils[p][0][0]
                 else:
                     # 3P+N: optional 4th terminal taps the star/neutral point.
                     c_start = neutral_tap if neutral_tap is not None else coils[0][-1][1]
@@ -939,19 +957,6 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             self.add_through_via(c_start, net_coil)
             
             th = math.atan2(c_start.y, c_start.x)
-            if phases == 1:
-                if p == 0:
-                    one_p_term_angle0 = th
-                else:
-                    # Keep 1P terminals visually separated (avoid stacked pads).
-                    if one_p_term_angle0 is not None:
-                        d = th - one_p_term_angle0
-                        while d > math.pi:
-                            d -= 2 * math.pi
-                        while d < -math.pi:
-                            d += 2 * math.pi
-                        if abs(d) < (math.pi / 2.0):
-                            th = one_p_term_angle0 + math.pi
             t_pt = self.fpoint(int(term_radius * math.cos(th)), int(term_radius * math.sin(th)))
             
             t = pcbnew.PCB_TRACK(self.board)
@@ -976,7 +981,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                         pad.SetNet(net_coil)
                     dth = 0.05
                     m.Reference().SetPosition(self.fpoint(int(term_radius * math.cos(th+dth)), int(term_radius * math.sin(th+dth))))
-                    m.SetReference( "A" if p==0 else ("B" if p==1 else "C") )
+                    m.SetReference("A" if p == 0 else ("B" if p == 1 else ("C" if p == 2 else "N")))
                     self.board.Add(m)
 
         self.support_hole_collision_count = support_collisions
