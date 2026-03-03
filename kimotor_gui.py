@@ -702,13 +702,19 @@ class KiMotorGUI ( wx.Frame ):
 		for _sb in (sbSizer2, sbSizer1, sbSizer111, sbSizerStatus):
 			_style_staticbox(_sb.GetStaticBox())
 
+		# Keep readable label area in the two input-heavy columns.
+		sbSizer2.GetStaticBox().SetMinSize(wx.Size(500, -1))
+		sbSizer1.GetStaticBox().SetMinSize(wx.Size(500, -1))
+		sbSizer111.GetStaticBox().SetMinSize(wx.Size(380, -1))
+		sbSizerStatus.GetStaticBox().SetMinSize(wx.Size(280, -1))
+
 		# Free horizontal space for labels: shrink wide value widgets a bit.
 		for _c in self.GetChildren():
 			if isinstance(_c, (wx.ComboBox, wx.SpinCtrlDouble)):
 				w, h = _c.GetSize()
 				if w >= 150:
-					_c.SetMinSize(wx.Size(130, h))
-					_c.SetSize(wx.Size(130, h))
+					_c.SetMinSize(wx.Size(110, h))
+					_c.SetSize(wx.Size(110, h))
 
 		bSizer5.Insert( 0, bSizerMainRow, 1, wx.EXPAND|wx.TOP, 8 )
 		bSizer1.Add( bSizer5, 1, wx.EXPAND|wx.LEFT|wx.RIGHT, 5 )
