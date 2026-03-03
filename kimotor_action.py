@@ -512,8 +512,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             R = np.array([[math.cos(th), -math.sin(th)],[math.sin(th), math.cos(th)]])
             Tcw = np.matmul(R, pcu0.transpose()).transpose()
             Tccw = np.matmul(R, pcu1.transpose()).transpose()
-            coil_start_pin = None
-            coil_end_pin = None
+            slot_anchors = self.build_slot_anchors(Tcw, Tccw, th)
 
             for idx, layer in enumerate(lset):
                 is_first = (idx == 0)
@@ -545,22 +544,68 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                         if net_coil: via.SetNet(net_coil)
                         self.board.Add(via)
 
-                if is_first:
-                    coil_start_pin = ct[0]
-                if is_last:
-                    coil_end_pin = ct[1]
-
-            if coil_start_pin is None:
-                coil_start_pin = self.fpoint(0, 0)
-            if coil_end_pin is None:
-                coil_end_pin = coil_start_pin
-            pins = [coil_start_pin, coil_end_pin]
+            pins = [slot_anchors[0], slot_anchors[1]]
             coil_p[p % self.phases].append(pins)
             coil_slot[p] = pins
 
         self.coil_slot_pins = coil_slot
 
         return coil_p
+
+    def _angle_diff(self, a, b):
+        d = a - b
+        while d > math.pi:
+            d -= 2 * math.pi
+        while d < -math.pi:
+            d += 2 * math.pi
+        return d
+
+    def build_slot_anchors(self, tcw, tccw, th_center):
+        # Deterministically pick the two inner coil corners (left/right of slot centerline).
+        raw_pts = {}
+        for arr in (tcw, tccw):
+            for p in arr:
+                x = int(p[0])
+                y = int(p[1])
+                raw_pts[(x, y)] = True
+
+        pts = list(raw_pts.keys())
+        if not pts:
+            z = self.fpoint(0, 0)
+            return [z, z]
+
+        radii = [math.hypot(x, y) for (x, y) in pts]
+        r_min = min(radii)
+        tol = max(self.dr * 0.75, self.trk_w * 1.5, self.SCALE * 0.3)
+
+        inner = []
+        for (x, y) in pts:
+            r = math.hypot(x, y)
+            if abs(r - r_min) <= tol:
+                dth = self._angle_diff(math.atan2(y, x), th_center)
+                inner.append((x, y, dth))
+
+        if len(inner) < 2:
+            ranked = []
+            for (x, y) in pts:
+                r = math.hypot(x, y)
+                dth = self._angle_diff(math.atan2(y, x), th_center)
+                ranked.append((abs(r - r_min), x, y, dth))
+            ranked.sort(key=lambda t: t[0])
+            inner = [(t[1], t[2], t[3]) for t in ranked[:2]]
+
+        neg = [p for p in inner if p[2] < 0]
+        pos = [p for p in inner if p[2] >= 0]
+
+        if neg and pos:
+            left = min(neg, key=lambda p: p[2])   # most negative angle wrt slot centerline
+            right = max(pos, key=lambda p: p[2])  # most positive angle wrt slot centerline
+        else:
+            ordered = sorted(inner, key=lambda p: p[2])
+            left = ordered[0]
+            right = ordered[-1]
+
+        return [self.fpoint(left[0], left[1]), self.fpoint(right[0], right[1])]
 
     def add_through_via(self, position, net=None):
         return self.add_custom_through_via(position, net=net, drill=self.d_drill, width=self.d_via)
