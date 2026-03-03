@@ -706,6 +706,21 @@ class KiMotorGUI ( wx.Frame ):
 
 		bSizer5.Add( sbSizerStatus, 0, wx.EXPAND|wx.TOP, 8 )
 
+		# Visual cleanup: emphasize section blocks with bold titles and clear borders.
+		def _style_staticbox(box):
+			if not box:
+				return
+			f = box.GetFont()
+			f.SetWeight(wx.FONTWEIGHT_BOLD)
+			box.SetFont(f)
+			try:
+				box.SetWindowStyleFlag(box.GetWindowStyleFlag() | wx.BORDER_SIMPLE)
+			except Exception:
+				pass
+
+		for _sb in (sbSizer2, sbSizer1, sbSizer111, sbSizerStatus):
+			_style_staticbox(_sb.GetStaticBox())
+
 		bSizer1.Add( bSizer5, 1, wx.EXPAND|wx.LEFT|wx.RIGHT, 5 )
 
 		self.SetSizer( bSizer1 )
