@@ -1119,6 +1119,22 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 self.board.Add(seg)
                 segs[i] = seg
 
+    def _outline_poly_points(self, r, n_edge):
+        if n_edge < 4:
+            return None
+        rp = r / math.cos(math.pi / n_edge)
+        thp = 2 * math.pi / n_edge
+        tho = thp / 2
+        pts = []
+        for i in range(n_edge):
+            pts.append(
+                self.fpoint(
+                    int(rp * math.cos(i * thp + tho)),
+                    int(rp * math.sin(i * thp + tho))
+                )
+            )
+        return pts
+
     def do_mounting_holes(self, r_mh_out=0, n_mh_out=0, r_mh_in=0, n_mh_in=0, n_edge=0, hs="None"):
         if hs != "None":
             fp_lib = self.fp_path + 'MountingHole.pretty'
@@ -1171,7 +1187,8 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 net = z.GetNet()
             except Exception:
                 net = None
-            if net is not None and net.GetNetname() == "gnd":
+            on_mask = bool(z.GetLayerSet().Contains(pcbnew.F_Mask) or z.GetLayerSet().Contains(pcbnew.B_Mask))
+            if (net is not None and net.GetNetname() == "gnd") or on_mask:
                 zones_to_remove.append(z)
         for z in zones_to_remove:
             self.board.Remove(z)
@@ -1190,13 +1207,8 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 cp.append(self.fpoint(c[0],c[1]))
             z.AddPolygon( self.fpoint_vector(cp) )
         elif self.n_edges >= 4:
-            ro = int(r_out / math.cos(math.pi/self.n_edges) )
-            p =[]
-            p.append( self.fpoint(ro,ro) )
-            p.append( self.fpoint(ro,-ro) )
-            p.append( self.fpoint(-ro,-ro) )
-            p.append( self.fpoint(-ro,ro) )
-            z.AddPolygon( self.fpoint_vector(p) )
+            p = self._outline_poly_points(r_out, self.n_edges)
+            z.AddPolygon(self.fpoint_vector(p))
 
         cpl = kla.circle_to_polygon( self.r_coil_out + 2*self.trk_w, 100 )
         cp =[]
@@ -1242,24 +1254,13 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             z.AddPolygon( self.fpoint_vector(cp) )
 
         elif self.n_edges >= 4:
-            r2 = int(r_out / math.cos(math.pi/self.n_edges))
-            th0 = 2*math.pi/self.n_edges
-            points =[]
-            for i in range(self.n_edges):
-                points.append(
-                    self.fpoint(
-                        int(r2 * math.cos(th0*i+th0/2)), 
-                        int(r2 * math.sin(th0*i+th0/2))))
-            z.AddPolygon( self.fpoint_vector(points) )
-            
-            points =[]
-            r2 = int((r_out - self.w_mnt) / math.cos(math.pi/self.n_edges))
-            for i in range(self.n_edges):
-                points.append(
-                    self.fpoint(
-                        int(r2 * math.cos(th0*i+th0/2)), 
-                        int(r2 * math.sin(th0*i+th0/2))))
-            z.AddPolygon( self.fpoint_vector(points) )
+            points_outer = self._outline_poly_points(r_out, self.n_edges)
+            z.AddPolygon(self.fpoint_vector(points_outer))
+
+            r_inner = r_out - self.w_mnt
+            if r_inner > 0:
+                points_inner = self._outline_poly_points(r_inner, self.n_edges)
+                z.AddPolygon(self.fpoint_vector(points_inner))
 
         z.SetLayerSet(nls)
         z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
