@@ -14,9 +14,9 @@ import wx.xrc
 class KiMotorGUI ( wx.Frame ):
 
 	def __init__( self, parent ):
-		wx.Frame.__init__ ( self, parent, id = wx.ID_ANY, title = u"KiMotor Pro - by ITCRW", pos = wx.DefaultPosition, size = wx.Size( 1700,750 ), style = wx.DEFAULT_FRAME_STYLE|wx.STAY_ON_TOP|wx.TAB_TRAVERSAL, name = u"kimotor" )
+		wx.Frame.__init__ ( self, parent, id = wx.ID_ANY, title = u"KiMotor Pro - by ITCRW", pos = wx.DefaultPosition, size = wx.Size( 1820,760 ), style = wx.DEFAULT_FRAME_STYLE|wx.STAY_ON_TOP|wx.TAB_TRAVERSAL, name = u"kimotor" )
 
-		self.SetSizeHints( wx.Size(1500,700), wx.DefaultSize )
+		self.SetSizeHints( wx.Size(1760,720), wx.DefaultSize )
 		self.SetBackgroundColour( wx.SystemSettings.GetColour( wx.SYS_COLOUR_3DLIGHT ) )
 
 		bSizer1 = wx.BoxSizer( wx.VERTICAL )
@@ -747,11 +747,11 @@ class KiMotorGUI ( wx.Frame ):
 		for _sb in (sbSizer2, sbSizer1, sbSizer111, sbSizerStatus):
 			_reset_desc_font(_sb.GetStaticBox())
 
-		# Keep layout flexible: avoid hard minimum widths that can push columns off-screen.
-		sbSizer2.GetStaticBox().SetMinSize(wx.Size(-1, -1))
-		sbSizer1.GetStaticBox().SetMinSize(wx.Size(-1, -1))
-		sbSizer111.GetStaticBox().SetMinSize(wx.Size(-1, -1))
-		sbSizerStatus.GetStaticBox().SetMinSize(wx.Size(-1, -1))
+		# Enforce per-column right boundary so controls cannot spill into next column.
+		sbSizer2.GetStaticBox().SetMinSize(wx.Size(560, -1))
+		sbSizer1.GetStaticBox().SetMinSize(wx.Size(560, -1))
+		sbSizer111.GetStaticBox().SetMinSize(wx.Size(430, -1))
+		sbSizerStatus.GetStaticBox().SetMinSize(wx.Size(480, -1))
 
 		# Free horizontal space for labels: shrink wide value widgets recursively.
 		def _shrink_desc_inputs(win):
