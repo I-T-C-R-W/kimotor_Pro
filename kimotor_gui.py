@@ -753,19 +753,8 @@ class KiMotorGUI ( wx.Frame ):
 		sbSizer111.GetStaticBox().SetMinSize(wx.Size(430, -1))
 		sbSizerStatus.GetStaticBox().SetMinSize(wx.Size(480, -1))
 
-		# Free horizontal space for labels: shrink wide value widgets recursively.
-		def _shrink_desc_inputs(win):
-			for _child in win.GetChildren():
-				if isinstance(_child, (wx.ComboBox, wx.SpinCtrlDouble)):
-					w, h = _child.GetSize()
-					if w >= 100:
-						_child.SetMinSize(wx.Size(86, h))
-						_child.SetMaxSize(wx.Size(110, h))
-						_child.SetSize(wx.Size(90, h))
-				_shrink_desc_inputs(_child)
-
-		for _sb in (sbSizer2, sbSizer1, sbSizer111, sbSizerStatus):
-			_shrink_desc_inputs(_sb.GetStaticBox())
+		# Do not force global control shrinking here; Spin controls need enough
+		# width so +/- steppers remain fully visible on GTK themes.
 
 		bSizer5.Insert( 0, bSizerMainRow, 1, wx.EXPAND|wx.TOP, 8 )
 		bSizer1.Add( bSizer5, 1, wx.EXPAND|wx.LEFT|wx.RIGHT, 5 )
