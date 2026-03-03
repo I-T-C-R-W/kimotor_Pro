@@ -684,6 +684,20 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         pad_margin = int(0.25 * self.SCALE)
         return max(self.d_support_hole + pad_margin, self.d_support_hole + 1)
 
+    def get_selected_terminal_od_iu(self):
+        # Estimate terminal outer diameter from selected THT footprint name "..._ODx.xmm".
+        # Used to keep clustered terminals from overlapping.
+        if self.trmtype != "THT":
+            return int(4.0 * self.SCALE)
+        try:
+            fp = self.term_db.get("THT", {}).get(self.m_termSize.GetStringSelection(), "")
+            if "_OD" in fp and "mm" in fp:
+                token = fp.split("_OD", 1)[1].split("mm", 1)[0]
+                return int(float(token) * self.SCALE)
+        except Exception:
+            pass
+        return int(4.0 * self.SCALE)
+
     def hole_collides(self, position, placed_points, min_distance):
         for pt in placed_points:
             if math.hypot(pt.x - position.x, pt.y - position.y) < min_distance:
@@ -979,12 +993,45 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 terminal_starts = [c0, c1]
                 terminal_angles = [cand_angles[1], cand_angles[0]]
         elif phases == 3 and self.n_term == 3:
-            # Restore known-good 3P behavior:
-            # phase terminals come from slots 0/1/2 (grouped area), no remapping.
-            for pidx in range(3):
-                c = get_slot_start(pidx, pidx)
+            # 3P clustered terminals: keep pin 2 centered, place pins 1/3 tangentially
+            # based on THT terminal diameter so footprints do not overlap.
+            phase_starts = [get_slot_start(0, 0), get_slot_start(1, 1), get_slot_start(2, 2)]
+            base = math.atan2(phase_starts[1].y, phase_starts[1].x)
+            term_od = self.get_selected_terminal_od_iu()
+            tangential_pitch = max(
+                term_od + int(0.6 * self.SCALE),
+                self.d_via + self.trk_space + int(0.8 * self.SCALE)
+            )
+            spread = tangential_pitch / max(float(term_radius), 1.0)
+            spread = min(0.35, max(0.06, spread))
+            cand_angles = [base + spread, base, base - spread]
+
+            best_perm = (0, 1, 2)
+            best_cost = None
+            for perm in itertools.permutations(range(3)):
+                cost = 0.0
+                segs = []
+                for i in range(3):
+                    s = phase_starts[i]
+                    th_i = cand_angles[perm[i]]
+                    tpt = (term_radius * math.cos(th_i), term_radius * math.sin(th_i))
+                    spt = (float(s.x), float(s.y))
+                    cost += abs(self._angle_diff(math.atan2(s.y, s.x), th_i))
+                    cost += math.hypot(tpt[0] - spt[0], tpt[1] - spt[1]) / max(float(self.SCALE), 1.0)
+                    segs.append((spt, tpt))
+                crossing = 0
+                for i in range(3):
+                    for j in range(i + 1, 3):
+                        if segs_intersect(segs[i][0], segs[i][1], segs[j][0], segs[j][1]):
+                            crossing += 1
+                cost += 10000.0 * crossing
+                if best_cost is None or cost < best_cost:
+                    best_cost = cost
+                    best_perm = perm
+
+            for i, c in enumerate(phase_starts):
                 terminal_starts.append(c)
-                terminal_angles.append(math.atan2(c.y, c.x))
+                terminal_angles.append(cand_angles[best_perm[i]])
         else:
             # User preference: 3P terminals grouped in one local cluster (not 120deg separated).
             phase_starts = []
