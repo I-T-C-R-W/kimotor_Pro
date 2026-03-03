@@ -1007,17 +1007,20 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             # Keep 3P trunk connections radial from each phase start (no crossing with rings).
             # Only offset outer terminal footprints sideways by short side stubs.
             phase_starts = [get_slot_start(0, 0), get_slot_start(1, 1), get_slot_start(2, 2)]
+            base_th = math.atan2(phase_starts[1].y, phase_starts[1].x)
             term_od = self.get_selected_terminal_od_iu()
             side_shift_iu = max(int(0.45 * term_od), int(0.8 * self.SCALE))
             for i, c in enumerate(phase_starts):
+                th_i = math.atan2(c.y, c.x)
                 terminal_starts.append(c)
-                terminal_angles.append(math.atan2(c.y, c.x))
+                terminal_angles.append(th_i)
                 if i == 1:
                     terminal_side_shift.append(0)
-                elif i == 0:
-                    terminal_side_shift.append(side_shift_iu)
                 else:
-                    terminal_side_shift.append(-side_shift_iu)
+                    # Push outer pins away from the center pin along tangent.
+                    dth = self._angle_diff(th_i, base_th)
+                    sgn = 1 if dth >= 0 else -1
+                    terminal_side_shift.append(sgn * side_shift_iu)
         else:
             # User preference: 3P terminals grouped in one local cluster (not 120deg separated).
             phase_starts = []
