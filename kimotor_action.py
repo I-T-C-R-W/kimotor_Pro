@@ -730,7 +730,9 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
             width = item.GetWidth() if hasattr(item, "GetWidth") else self.trk_w
             pts = []
-            for getter in ("GetStart", "GetEnd", "GetMid", "GetPosition"):
+            # Do not use arc/track center position here (e.g. ARC center at board origin),
+            # otherwise safe radius can collapse incorrectly to 0.
+            for getter in ("GetStart", "GetEnd", "GetMid"):
                 if hasattr(item, getter):
                     try:
                         p = getattr(item, getter)()
