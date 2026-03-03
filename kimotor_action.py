@@ -650,14 +650,15 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         if not cand:
             return self.fpoint(0, 0)
 
-        # Prefer points close to centerline, then pick the outer one among those
-        # (matches desired visual placement near top-center of slit).
+        # Prefer points close to centerline, then pick the mid-height point in the slit.
         d_max = max(th_slot * 0.08, 0.01)
         close = [c for c in cand if c[0] <= d_max]
         if not close:
             close = sorted(cand, key=lambda c: c[0])[:6]
 
-        best = max(close, key=lambda c: c[1])
+        r_values = [c[1] for c in close]
+        r_target = 0.5 * (min(r_values) + max(r_values))
+        best = min(close, key=lambda c: abs(c[1] - r_target))
         return self.fpoint(best[2], best[3])
 
     def add_through_via(self, position, net=None):
