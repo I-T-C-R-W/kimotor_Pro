@@ -731,6 +731,9 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             first_ring_offset = int(0.5 * max(self.d_via, self.d_support_hole))
         else:
             first_ring_offset = max(self.d_via, self.d_support_hole)
+        # Give extra clearance to support TH holes near the first ring.
+        if support_via_mode in (2, 4):
+            first_ring_offset += int(0.5 * self.d_support_hole)
         current_radius = self.r_coil_in - (self.d_via / 2.0) - self.ring_space - (self.ring_w / 2.0) - first_ring_offset
         lowest_used_radius = current_radius
 
