@@ -693,7 +693,9 @@ class KiMotorGUI ( wx.Frame ):
 				return
 			f = box.GetFont()
 			f.SetWeight(wx.FONTWEIGHT_BOLD)
-			box.SetFont(f)
+			# Use own font on the static box label only; avoid inheriting bold
+			# style into all child controls.
+			box.SetOwnFont(f)
 			try:
 				box.SetWindowStyleFlag(box.GetWindowStyleFlag() | wx.BORDER_SIMPLE)
 			except Exception:
@@ -701,6 +703,17 @@ class KiMotorGUI ( wx.Frame ):
 
 		for _sb in (sbSizer2, sbSizer1, sbSizer111, sbSizerStatus):
 			_style_staticbox(_sb.GetStaticBox())
+
+		# Restore normal font on all children to prevent label truncation caused
+		# by inherited bold fonts on some GTK themes.
+		_normal_font = self.GetFont()
+		for _c in self.GetChildren():
+			if not isinstance(_c, wx.StaticBox):
+				_c.SetOwnFont(_normal_font)
+				try:
+					_c.InvalidateBestSize()
+				except Exception:
+					pass
 
 		# Keep readable label area in the two input-heavy columns.
 		sbSizer2.GetStaticBox().SetMinSize(wx.Size(500, -1))
