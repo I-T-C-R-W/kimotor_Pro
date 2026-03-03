@@ -185,9 +185,9 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             self.support_via_mode = 2
 
         if hasattr(self, "m_cbFillInnerGND"):
-            self.fill_inner_gnd = bool(self.m_cbFillInnerGND.GetValue())
+            self.fill_inner_gnd = bool(self.m_cbFillInnerGND.IsChecked() if hasattr(self.m_cbFillInnerGND, "IsChecked") else self.m_cbFillInnerGND.GetValue())
         elif hasattr(self, "m_chkFillInnerGnd"):
-            self.fill_inner_gnd = bool(self.m_chkFillInnerGnd.GetValue())
+            self.fill_inner_gnd = bool(self.m_chkFillInnerGnd.IsChecked() if hasattr(self.m_chkFillInnerGnd, "IsChecked") else self.m_chkFillInnerGnd.GetValue())
         else:
             self.fill_inner_gnd = True
 
@@ -506,7 +506,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             Tcw = np.matmul(R, pcu0.transpose()).transpose()
             Tccw = np.matmul(R, pcu1.transpose()).transpose()
             slot_anchors = self.build_slot_anchors(Tcw, Tccw, th)
-            slot_center_via = self.build_slot_center_via(Tccw, th, th0)
+            slot_center_via = self.build_slot_center_via(Tcw, Tccw, th, th0)
 
             for idx, layer in enumerate(lset):
                 is_first = (idx == 0)
@@ -625,20 +625,21 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
         return [self.fpoint(left[0], left[1]), self.fpoint(right[0], right[1])]
 
-    def build_slot_center_via(self, arr, th_center, th_slot):
+    def build_slot_center_via(self, arr_a, arr_b, th_center, th_slot):
         # Pick a deterministic centerline point for the inter-layer via.
         cand = []
-        for p in arr:
-            try:
-                x = int(p[0,0]); y = int(p[0,1])
-            except Exception:
-                flat = np.asarray(p).reshape(-1)
-                if flat.size < 2:
-                    continue
-                x = int(flat[0]); y = int(flat[1])
-            r = math.hypot(x, y)
-            d = abs(self._angle_diff(math.atan2(y, x), th_center))
-            cand.append((d, r, x, y))
+        for arr in (arr_a, arr_b):
+            for p in arr:
+                try:
+                    x = int(p[0,0]); y = int(p[0,1])
+                except Exception:
+                    flat = np.asarray(p).reshape(-1)
+                    if flat.size < 2:
+                        continue
+                    x = int(flat[0]); y = int(flat[1])
+                r = math.hypot(x, y)
+                d = abs(self._angle_diff(math.atan2(y, x), th_center))
+                cand.append((d, r, x, y))
 
         if not cand:
             return self.fpoint(0, 0)
@@ -656,7 +657,8 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         # avoiding the lower-kink cluster selected by a plain midpoint.
         r_target = r_low + 0.70 * (r_high - r_low)
         best = min(close, key=lambda c: abs(c[1] - r_target))
-        return self.fpoint(best[2], best[3])
+        # Project to exact slot centerline to avoid lateral offset.
+        return self.fpoint(int(best[1] * math.cos(th_center)), int(best[1] * math.sin(th_center)))
 
     def add_through_via(self, position, net=None):
         return self.add_custom_through_via(position, net=net, drill=self.d_drill, width=self.d_via)
@@ -1255,16 +1257,17 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
         self.board.Add(z)
 
-        z = pcbnew.ZONE(self.board)
-        cpl = kla.circle_to_polygon(r_nosm_in, 100)
-        cp =[]
-        for c in cpl:
-            cp.append(self.fpoint(c[0],c[1]))
+        if fill_inner_area_gnd:
+            z = pcbnew.ZONE(self.board)
+            cpl = kla.circle_to_polygon(r_nosm_in, 100)
+            cp =[]
+            for c in cpl:
+                cp.append(self.fpoint(c[0],c[1]))
 
-        z.AddPolygon( self.fpoint_vector(cp) )
-        z.SetLayerSet(nls)
-        z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
-        self.board.Add(z)
+            z.AddPolygon( self.fpoint_vector(cp) )
+            z.SetLayerSet(nls)
+            z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
+            self.board.Add(z)
 
         filler.Fill(self.board.Zones())
 
