@@ -657,7 +657,11 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             close = sorted(cand, key=lambda c: c[0])[:6]
 
         r_values = [c[1] for c in close]
-        r_target = 0.5 * (min(r_values) + max(r_values))
+        r_low = min(r_values)
+        r_high = max(r_values)
+        # Bias slightly upward in the slit so the via stays visually centered,
+        # avoiding the lower-kink cluster selected by a plain midpoint.
+        r_target = r_low + 0.70 * (r_high - r_low)
         best = min(close, key=lambda c: abs(c[1] - r_target))
         return self.fpoint(best[2], best[3])
 
