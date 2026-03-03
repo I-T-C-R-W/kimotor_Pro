@@ -945,7 +945,16 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             last_slot_1p = self.n_slots - 1
             c1 = self.coil_slot_pins[last_slot_1p][1] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[last_slot_1p] else coils[0][-1][1]
             terminal_starts = [c0, c1]
-            terminal_angles = [math.atan2(c0.y, c0.x), math.atan2(c1.y, c1.x)]
+            a0 = math.atan2(c0.y, c0.x)
+            a1 = math.atan2(c1.y, c1.x)
+            ux = math.cos(a0) + math.cos(a1)
+            uy = math.sin(a0) + math.sin(a1)
+            base = math.atan2(uy, ux) if (ux != 0 or uy != 0) else a0
+            # Compact 1P terminals on one side with a small tangential spread.
+            tangential_gap = max((self.d_via + self.trk_space) * 1.6, self.SCALE * 1.2)
+            spread = tangential_gap / max(float(term_radius), 1.0)
+            spread = min(0.22, max(0.03, spread))
+            terminal_angles = [base - spread, base + spread]
         else:
             phase_angles = []
             for pidx in range(phases):
