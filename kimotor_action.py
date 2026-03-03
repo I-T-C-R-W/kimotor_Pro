@@ -920,29 +920,11 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         # 5. FINALE TERMINAL-ANSCHLÜSSE (Zur Platine oder Kabel)
         term_radius = lowest_used_radius - self.term_offset
         n_phase_coils = int(self.n_slots / phases) if phases > 0 else 0
-        phase_ref_angle = 0.0
-        if phases > 1 and hasattr(self, "coil_slot_pins") and self.coil_slot_pins and self.coil_slot_pins[0]:
-            p0 = self.coil_slot_pins[0][0]
-            phase_ref_angle = math.atan2(p0.y, p0.x)
 
-        def select_phase_terminal_slot(phase_idx):
-            # Spread A/B/C around the circle by choosing, within each phase set,
-            # the slot nearest to the ideal phase angle.
-            if phases <= 1 or n_phase_coils <= 0:
-                return phase_idx
-            # Use real geometry as angular reference to keep 3P stable across
-            # different slot/orientation offsets.
-            target = phase_ref_angle + (2.0 * math.pi * phase_idx) / phases
-            best_slot = phase_idx
-            best_err = None
-            for k in range(n_phase_coils):
-                slot = phase_idx + k * phases
-                ang = slot * th0
-                err = abs(self._angle_diff(ang, target))
-                if best_err is None or err < best_err:
-                    best_err = err
-                    best_slot = slot
-            return best_slot
+        def get_slot_start(slot, phase_idx):
+            if hasattr(self, "coil_slot_pins") and self.coil_slot_pins and self.coil_slot_pins[slot]:
+                return self.coil_slot_pins[slot][0]
+            return coils[phase_idx][0][0]
 
         terminal_starts = []
         terminal_angles = []
@@ -977,41 +959,36 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 terminal_starts = [c0, c1]
                 terminal_angles = [cand_angles[1], cand_angles[0]]
         else:
-            phase_angles = []
+            # User preference: 3P terminals grouped in one local cluster (not 120deg separated).
+            phase_starts = []
             for pidx in range(phases):
-                phase_slot = select_phase_terminal_slot(pidx)
-                c = self.coil_slot_pins[phase_slot][0] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[phase_slot] else coils[pidx][0][0]
-                a = math.atan2(c.y, c.x)
+                phase_slot = pidx if n_phase_coils > 0 else pidx
+                c = get_slot_start(phase_slot, pidx)
+                phase_starts.append(c)
+
+            base = math.atan2(phase_starts[0].y, phase_starts[0].x) if phase_starts else 0.0
+            min_sep_mm = 7.0 if self.trmtype == "THT" else 4.0
+            min_sep_iu = min_sep_mm * self.SCALE
+            ratio = min(0.95, min_sep_iu / max(float(term_radius), 1.0))
+            spread = math.asin(ratio)
+            spread = min(0.35, max(0.05, spread))
+
+            # symmetric cluster around base angle
+            if phases == 3:
+                phase_offsets = [-spread, 0.0, spread]
+            elif phases == 2:
+                phase_offsets = [-0.5 * spread, 0.5 * spread]
+            else:
+                phase_offsets = [((i - (phases - 1) / 2.0) * spread) for i in range(phases)]
+
+            for i, c in enumerate(phase_starts):
                 terminal_starts.append(c)
-                terminal_angles.append(a)
-                phase_angles.append(a)
+                terminal_angles.append(base + phase_offsets[i])
 
             if self.n_term > phases:
                 c_n = neutral_tap if neutral_tap is not None else coils[0][-1][1]
                 terminal_starts.append(c_n)
-                if len(phase_angles) >= 2:
-                    ph = []
-                    for a in phase_angles:
-                        if a < 0:
-                            a += 2 * math.pi
-                        ph.append(a)
-                    ph.sort()
-                    best_gap = -1.0
-                    best_mid = ph[0]
-                    for i in range(len(ph)):
-                        a0 = ph[i]
-                        a1 = ph[(i + 1) % len(ph)]
-                        if i == len(ph) - 1:
-                            a1 += 2 * math.pi
-                        gap = a1 - a0
-                        if gap > best_gap:
-                            best_gap = gap
-                            best_mid = a0 + gap / 2.0
-                    while best_mid > math.pi:
-                        best_mid -= 2 * math.pi
-                    terminal_angles.append(best_mid)
-                else:
-                    terminal_angles.append(math.atan2(c_n.y, c_n.x))
+                terminal_angles.append(base + (phase_offsets[-1] + spread))
 
         for p in range(self.n_term):
             if p < len(terminal_starts):
