@@ -774,6 +774,17 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 self.add_through_via(c1e, net_coil)
                 self.add_through_via(c2s, net_coil)
 
+                # 1P mode: direct via-to-via links, no inner ring buses.
+                if phases == 1:
+                    t = pcbnew.PCB_TRACK(self.board)
+                    t.SetLayer(pcbnew.B_Cu)
+                    t.SetWidth(self.trk_w)
+                    if net_coil: t.SetNet(net_coil)
+                    t.SetStart(c1e)
+                    t.SetEnd(c2s)
+                    self.board.Add(t)
+                    continue
+
                 # Schnurgerade radiale Zuleitung auf der UNTERSEITE (B_Cu) zum Sammelring ziehen
                 th1 = math.atan2(c1e.y, c1e.x)
                 via1_pt = self.fpoint(int(cri * math.cos(th1)), int(cri * math.sin(th1)))
@@ -873,8 +884,42 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 arc.SetEnd(pt2)
                 self.board.Add(arc)
 
+            # 3P+N: create a dedicated neutral hub so N is not tied to a phase star point.
+            if self.n_term > phases and len(star_pts) >= 3:
+                ux = 0.0
+                uy = 0.0
+                for pidx in range(phases):
+                    first_slot = pidx
+                    if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[first_slot]:
+                        c0 = self.coil_slot_pins[first_slot][0]
+                        ang = math.atan2(c0.y, c0.x)
+                    else:
+                        ang = star_pts[pidx][0]
+                    ux += math.cos(ang)
+                    uy += math.sin(ang)
+                th_n = math.atan2(uy, ux) if (ux != 0 or uy != 0) else star_pts[0][0]
+                neutral_radius = star_radius - self.ring_dr
+                if neutral_radius <= 0:
+                    neutral_radius = max(star_radius * 0.85, self.d_via * 2.0)
+                neutral_tap = self.fpoint(
+                    int(neutral_radius * math.cos(th_n)),
+                    int(neutral_radius * math.sin(th_n))
+                )
+                self.add_through_via(neutral_tap, net_coil)
+                for _, pt in star_pts:
+                    tn = pcbnew.PCB_TRACK(self.board)
+                    tn.SetLayer(pcbnew.B_Cu)
+                    tn.SetWidth(self.trk_w)
+                    if net_coil: tn.SetNet(net_coil)
+                    tn.SetStart(pt)
+                    tn.SetEnd(neutral_tap)
+                    self.board.Add(tn)
+                if neutral_radius < lowest_used_radius:
+                    lowest_used_radius = neutral_radius
+
         # 5. FINALE TERMINAL-ANSCHLÜSSE (Zur Platine oder Kabel)
         term_radius = lowest_used_radius - self.term_offset
+        one_p_term_angle0 = None
         for p in range(self.n_term):
             if phases == 1:
                 if p == 0:
@@ -894,6 +939,19 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             self.add_through_via(c_start, net_coil)
             
             th = math.atan2(c_start.y, c_start.x)
+            if phases == 1:
+                if p == 0:
+                    one_p_term_angle0 = th
+                else:
+                    # Keep 1P terminals visually separated (avoid stacked pads).
+                    if one_p_term_angle0 is not None:
+                        d = th - one_p_term_angle0
+                        while d > math.pi:
+                            d -= 2 * math.pi
+                        while d < -math.pi:
+                            d += 2 * math.pi
+                        if abs(d) < (math.pi / 2.0):
+                            th = one_p_term_angle0 + math.pi
             t_pt = self.fpoint(int(term_radius * math.cos(th)), int(term_radius * math.sin(th)))
             
             t = pcbnew.PCB_TRACK(self.board)
