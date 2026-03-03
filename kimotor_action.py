@@ -944,7 +944,6 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             c0 = self.coil_slot_pins[0][0] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[0] else coils[0][0][0]
             last_slot_1p = self.n_slots - 1
             c1 = self.coil_slot_pins[last_slot_1p][1] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[last_slot_1p] else coils[0][-1][1]
-            terminal_starts = [c0, c1]
             a0 = math.atan2(c0.y, c0.x)
             a1 = math.atan2(c1.y, c1.x)
             ux = math.cos(a0) + math.cos(a1)
@@ -953,8 +952,24 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             # Compact 1P terminals on one side with a small tangential spread.
             tangential_gap = max((self.d_via + self.trk_space) * 1.6, self.SCALE * 1.2)
             spread = tangential_gap / max(float(term_radius), 1.0)
-            spread = min(0.22, max(0.03, spread))
-            terminal_angles = [base - spread, base + spread]
+            # Enforce minimum terminal separation so footprints don't overlap.
+            min_sep_mm = 7.0 if self.trmtype == "THT" else 4.0
+            min_sep_iu = min_sep_mm * self.SCALE
+            ratio = min(0.95, min_sep_iu / max(2.0 * float(term_radius), 1.0))
+            spread_req = math.asin(ratio)
+            spread = max(spread, spread_req)
+            spread = min(0.40, max(0.08, spread))
+
+            cand_angles = [base - spread, base + spread]
+            # Assign starts to angles to minimize crossings (choose better of 2 permutations).
+            cost_01 = abs(self._angle_diff(a0, cand_angles[0])) + abs(self._angle_diff(a1, cand_angles[1]))
+            cost_10 = abs(self._angle_diff(a0, cand_angles[1])) + abs(self._angle_diff(a1, cand_angles[0]))
+            if cost_01 <= cost_10:
+                terminal_starts = [c0, c1]
+                terminal_angles = [cand_angles[0], cand_angles[1]]
+            else:
+                terminal_starts = [c0, c1]
+                terminal_angles = [cand_angles[1], cand_angles[0]]
         else:
             phase_angles = []
             for pidx in range(phases):
