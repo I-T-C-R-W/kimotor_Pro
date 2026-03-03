@@ -414,16 +414,25 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             )
             print(traceback.format_exc())
 
-    def coil_tracker(self, mpt, layer, n_loops, group, is_terminal_layer=False):
+    def coil_tracker(self, mpt, layer, n_loops, group, is_first_layer=False, is_last_layer=False, is_ccw=False):
         """
-        Zeichnet die Spule und ermittelt robuste innere/äußere Anchor-Punkte.
-        Auf Terminal-Layern wird der innere Quer-Stummel entfernt.
+        Zeichnet die Spule und liefert die zwei expliziten Ecke-Anker.
+        Auf den Terminal-Layern wird der innere Stummel gezielt entfernt.
         """
-        nseg = n_loops * 4 - 1
         ip = 0
         t0 = None
-        endpoint_candidates = []
-        pe = self.fpoint(int(mpt[0][0,0]), int(mpt[0][0,1]))
+        nseg = n_loops * 4 - 1
+
+        skip_seg = -1
+        if is_first_layer and not is_ccw:
+            skip_seg = 0
+        if is_last_layer and is_ccw:
+            skip_seg = nseg - 1
+        if is_last_layer and not is_ccw:
+            skip_seg = nseg - 1
+
+        actual_start = None
+        actual_end = None
 
         for seg in range(nseg):
             ps = self.fpoint(int(mpt[ip][0,0]), int(mpt[ip][0,1]))
@@ -437,14 +446,17 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             ip += 1
             pe = self.fpoint(int(mpt[ip][0,0]), int(mpt[ip][0,1]))
 
-            d_s = math.hypot(ps.x, ps.y)
-            d_e = math.hypot(pe.x, pe.y)
-            if is_terminal_layer:
-                if abs(d_s - self.r_coil_in) < self.SCALE * 0.5 and abs(d_e - self.r_coil_in) < self.SCALE * 0.5:
-                    continue
+            if seg == skip_seg:
+                if skip_seg == 0:
+                    actual_start = pe
+                if skip_seg == nseg - 1:
+                    actual_end = ps
+                continue
 
-            endpoint_candidates.append(ps)
-            endpoint_candidates.append(pe)
+            if actual_start is None and seg == 0:
+                actual_start = ps
+            if actual_end is None and seg == nseg - 1:
+                actual_end = pe
 
             if is_arc:
                 t = pcbnew.PCB_ARC(self.board)
@@ -468,55 +480,15 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             group.AddItem(t)
             t0 = t
 
-        pt_counts = {}
-        for pt in endpoint_candidates:
-            key = (pt.x, pt.y)
-            pt_counts[key] = pt_counts.get(key, 0) + 1
+        if actual_start is None:
+            actual_start = self.fpoint(int(mpt[0][0,0]), int(mpt[0][0,1]))
+        if actual_end is None:
+            actual_end = actual_start
 
-        unique_ends = []
-        for pt in endpoint_candidates:
-            key = (pt.x, pt.y)
-            if pt_counts[key] == 1:
-                unique_ends.append(pt)
-
-        if len(unique_ends) >= 2:
-            tol = self.SCALE * 0.75
-            inner_candidates = [
-                pt for pt in unique_ends
-                if abs(math.hypot(pt.x, pt.y) - self.r_coil_in) <= tol
-            ]
-
-            # On terminal layers we want the two open inner corners after stub removal.
-            if is_terminal_layer and len(inner_candidates) >= 2:
-                inner_candidates.sort(key=lambda pt: math.atan2(pt.y, pt.x))
-                return [inner_candidates[0], inner_candidates[-1]]
-
-            if inner_candidates:
-                inner_anchor = min(inner_candidates, key=lambda pt: abs(math.hypot(pt.x, pt.y) - self.r_coil_in))
-                outer_anchor = max(unique_ends, key=lambda pt: math.hypot(pt.x, pt.y))
-                return [inner_anchor, outer_anchor]
-
-            # Fallback: nearest two endpoints to inner radius.
-            unique_ends.sort(key=lambda pt: abs(math.hypot(pt.x, pt.y) - self.r_coil_in))
-            a = unique_ends[0]
-            b = unique_ends[1]
-            if math.atan2(a.y, a.x) > math.atan2(b.y, b.x):
-                a, b = b, a
-            return [a, b]
-
-        fallback_a = self.fpoint(int(mpt[0][0,0]), int(mpt[0][0,1]))
-        fallback_b = pe
-        return [fallback_a, fallback_b]
+        return [actual_start, actual_end]
 
     def do_coils(self, ri, ro, n_slots, n_loops=1, lset=None, mode=0):
         th0 = 2*math.pi/n_slots
-        def ang_diff(a, b):
-            d = a - b
-            while d > math.pi:
-                d -= 2 * math.pi
-            while d < -math.pi:
-                d += 2 * math.pi
-            return d
         if mode == 0:
             pcu0, pcu0m, pcu0mi = ksolve.parallel( ri, ro, self.dr, th0, n_loops, 0 )
             pcu1, pcu1m, pcu1mi = ksolve.parallel( ri, ro, self.dr, th0, n_loops, 1 )
@@ -547,54 +519,42 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 is_first = (idx == 0)
                 is_last = (idx == len(lset) - 1)
                 is_ccw = (idx % 2 != 0)
-                is_terminal_layer = (is_first or is_last)
 
                 if is_ccw:
-                    inner_pin, outer_pin = self.coil_tracker(Tccw, layer, n_loops, pgroup, is_terminal_layer=is_terminal_layer)
+                    ct = self.coil_tracker(Tccw, layer, n_loops, pgroup, is_first, is_last, is_ccw)
                     via = pcbnew.PCB_VIA(self.board)
                     if len(lset)==2:
                         via.SetViaType(pcbnew.VIATYPE_THROUGH)
                     else:
                         via.SetViaType(pcbnew.VIATYPE_BLIND_BURIED)
                     via.SetLayerPair( lset[idx-1], lset[idx] )
-                    via.SetPosition( outer_pin )
+                    via.SetPosition( ct[1] )
                     via.SetDrill( self.d_drill )
                     via.SetWidth( self.d_via )
                     if net_coil: via.SetNet(net_coil)
                     self.board.Add(via)
                 else:
-                    inner_pin, outer_pin = self.coil_tracker(Tcw, layer, n_loops, pgroup, is_terminal_layer=is_terminal_layer)
+                    ct = self.coil_tracker(Tcw, layer, n_loops, pgroup, is_first, is_last, is_ccw)
                     if len(lset)>2 and idx:
                         via = pcbnew.PCB_VIA(self.board)
                         via.SetViaType(pcbnew.VIATYPE_BLIND_BURIED)
                         via.SetLayerPair( lset[idx-1], lset[idx] )
-                        via.SetPosition( inner_pin )
+                        via.SetPosition( ct[0] )
                         via.SetDrill( self.d_drill )
                         via.SetWidth( self.d_via )
                         if net_coil: via.SetNet(net_coil)
                         self.board.Add(via)
 
                 if is_first:
-                    coil_start_pin = inner_pin
+                    coil_start_pin = ct[0]
                 if is_last:
-                    # Keep end-pin on the opposite terminal corner to avoid center/mid taps.
-                    coil_end_pin = outer_pin if is_terminal_layer else inner_pin
+                    coil_end_pin = ct[1]
 
             if coil_start_pin is None:
                 coil_start_pin = self.fpoint(0, 0)
             if coil_end_pin is None:
                 coil_end_pin = coil_start_pin
-            # Canonicalize terminal corner order per slot:
-            # pins[0] = "left" corner, pins[1] = "right" corner (relative to slot centerline).
-            th_c = th0 * p
-            a1 = math.atan2(coil_start_pin.y, coil_start_pin.x)
-            a2 = math.atan2(coil_end_pin.y, coil_end_pin.x)
-            d1 = ang_diff(a1, th_c)
-            d2 = ang_diff(a2, th_c)
-            if d1 <= d2:
-                pins = [coil_start_pin, coil_end_pin]
-            else:
-                pins = [coil_end_pin, coil_start_pin]
+            pins = [coil_start_pin, coil_end_pin]
             coil_p[p % self.phases].append(pins)
             coil_slot[p] = pins
 
