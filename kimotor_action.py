@@ -563,10 +563,21 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
     def build_slot_anchors(self, tcw, tccw, th_center):
         # Deterministically pick the two inner coil corners (left/right of slot centerline).
         raw_pts = {}
+        def to_xy(pt):
+            try:
+                return int(pt[0,0]), int(pt[0,1])
+            except Exception:
+                flat = np.asarray(pt).reshape(-1)
+                if flat.size < 2:
+                    return None
+                return int(flat[0]), int(flat[1])
+
         for arr in (tcw, tccw):
             for p in arr:
-                x = int(p[0])
-                y = int(p[1])
+                xy = to_xy(p)
+                if xy is None:
+                    continue
+                x, y = xy
                 raw_pts[(x, y)] = True
 
         pts = list(raw_pts.keys())
