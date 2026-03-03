@@ -7,6 +7,7 @@ import numpy as np
 import math
 import json
 import traceback
+import itertools
 from datetime import datetime
 
 import wx
@@ -926,6 +927,15 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 return self.coil_slot_pins[slot][0]
             return coils[phase_idx][0][0]
 
+        def segs_intersect(a, b, c, d):
+            def orient(p, q, r):
+                return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+            o1 = orient(a, b, c)
+            o2 = orient(a, b, d)
+            o3 = orient(c, d, a)
+            o4 = orient(c, d, b)
+            return (o1 * o2 < 0) and (o3 * o4 < 0)
+
         terminal_starts = []
         terminal_angles = []
         if phases == 1:
@@ -980,10 +990,37 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 phase_offsets = [-0.5 * spread, 0.5 * spread]
             else:
                 phase_offsets = [((i - (phases - 1) / 2.0) * spread) for i in range(phases)]
+            cand_angles = [base + off for off in phase_offsets]
+
+            # Choose start->angle mapping that avoids crossings and minimizes route effort.
+            best_perm = list(range(phases))
+            best_cost = None
+            for perm in itertools.permutations(range(phases)):
+                # base cost: angular mismatch + radial segment length
+                cost = 0.0
+                segs = []
+                for i in range(phases):
+                    s = phase_starts[i]
+                    th_i = cand_angles[perm[i]]
+                    tpt = (term_radius * math.cos(th_i), term_radius * math.sin(th_i))
+                    spt = (float(s.x), float(s.y))
+                    cost += abs(self._angle_diff(math.atan2(s.y, s.x), th_i))
+                    cost += math.hypot(tpt[0] - spt[0], tpt[1] - spt[1]) / max(float(self.SCALE), 1.0)
+                    segs.append((spt, tpt))
+                # heavy penalty for crossing segments
+                crossing = 0
+                for i in range(phases):
+                    for j in range(i + 1, phases):
+                        if segs_intersect(segs[i][0], segs[i][1], segs[j][0], segs[j][1]):
+                            crossing += 1
+                cost += 10000.0 * crossing
+                if best_cost is None or cost < best_cost:
+                    best_cost = cost
+                    best_perm = perm
 
             for i, c in enumerate(phase_starts):
                 terminal_starts.append(c)
-                terminal_angles.append(base + phase_offsets[i])
+                terminal_angles.append(cand_angles[best_perm[i]])
 
             if self.n_term > phases:
                 c_n = neutral_tap if neutral_tap is not None else coils[0][-1][1]
