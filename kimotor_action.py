@@ -510,6 +510,13 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
     def do_coils(self, ri, ro, n_slots, n_loops=1, lset=None, mode=0):
         th0 = 2*math.pi/n_slots
+        def ang_diff(a, b):
+            d = a - b
+            while d > math.pi:
+                d -= 2 * math.pi
+            while d < -math.pi:
+                d += 2 * math.pi
+            return d
         if mode == 0:
             pcu0, pcu0m, pcu0mi = ksolve.parallel( ri, ro, self.dr, th0, n_loops, 0 )
             pcu1, pcu1m, pcu1mi = ksolve.parallel( ri, ro, self.dr, th0, n_loops, 1 )
@@ -577,7 +584,17 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 coil_start_pin = self.fpoint(0, 0)
             if coil_end_pin is None:
                 coil_end_pin = coil_start_pin
-            pins = [coil_start_pin, coil_end_pin]
+            # Canonicalize terminal corner order per slot:
+            # pins[0] = "left" corner, pins[1] = "right" corner (relative to slot centerline).
+            th_c = th0 * p
+            a1 = math.atan2(coil_start_pin.y, coil_start_pin.x)
+            a2 = math.atan2(coil_end_pin.y, coil_end_pin.x)
+            d1 = ang_diff(a1, th_c)
+            d2 = ang_diff(a2, th_c)
+            if d1 <= d2:
+                pins = [coil_start_pin, coil_end_pin]
+            else:
+                pins = [coil_end_pin, coil_start_pin]
             coil_p[p % self.phases].append(pins)
             coil_slot[p] = pins
 
