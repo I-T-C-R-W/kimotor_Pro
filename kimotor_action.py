@@ -513,6 +513,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             Tcw = np.matmul(R, pcu0.transpose()).transpose()
             Tccw = np.matmul(R, pcu1.transpose()).transpose()
             slot_anchors = self.build_slot_anchors(Tcw, Tccw, th)
+            slot_center_via = self.build_slot_center_via(Tccw, th, th0)
 
             for idx, layer in enumerate(lset):
                 is_first = (idx == 0)
@@ -527,7 +528,8 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     else:
                         via.SetViaType(pcbnew.VIATYPE_BLIND_BURIED)
                     via.SetLayerPair( lset[idx-1], lset[idx] )
-                    via.SetPosition( ct[1] )
+                    # Keep transition via centered in the slot slit for 2-layer builds.
+                    via.SetPosition(slot_center_via if len(lset) == 2 else ct[1])
                     via.SetDrill( self.d_drill )
                     via.SetWidth( self.d_via )
                     if net_coil: via.SetNet(net_coil)
@@ -629,6 +631,34 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             right = ordered[-1]
 
         return [self.fpoint(left[0], left[1]), self.fpoint(right[0], right[1])]
+
+    def build_slot_center_via(self, arr, th_center, th_slot):
+        # Pick a deterministic centerline point for the inter-layer via.
+        cand = []
+        for p in arr:
+            try:
+                x = int(p[0,0]); y = int(p[0,1])
+            except Exception:
+                flat = np.asarray(p).reshape(-1)
+                if flat.size < 2:
+                    continue
+                x = int(flat[0]); y = int(flat[1])
+            r = math.hypot(x, y)
+            d = abs(self._angle_diff(math.atan2(y, x), th_center))
+            cand.append((d, r, x, y))
+
+        if not cand:
+            return self.fpoint(0, 0)
+
+        # Prefer points close to centerline, then pick the outer one among those
+        # (matches desired visual placement near top-center of slit).
+        d_max = max(th_slot * 0.08, 0.01)
+        close = [c for c in cand if c[0] <= d_max]
+        if not close:
+            close = sorted(cand, key=lambda c: c[0])[:6]
+
+        best = max(close, key=lambda c: c[1])
+        return self.fpoint(best[2], best[3])
 
     def add_through_via(self, position, net=None):
         return self.add_custom_through_via(position, net=net, drill=self.d_drill, width=self.d_via)
