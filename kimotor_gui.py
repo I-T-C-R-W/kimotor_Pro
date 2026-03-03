@@ -14,7 +14,7 @@ import wx.xrc
 class KiMotorGUI ( wx.Frame ):
 
 	def __init__( self, parent ):
-		wx.Frame.__init__ ( self, parent, id = wx.ID_ANY, title = u"KiMotor", pos = wx.DefaultPosition, size = wx.Size( 550,1100 ), style = wx.DEFAULT_FRAME_STYLE|wx.STAY_ON_TOP|wx.TAB_TRAVERSAL, name = u"kimotor" )
+		wx.Frame.__init__ ( self, parent, id = wx.ID_ANY, title = u"KiMotor", pos = wx.DefaultPosition, size = wx.Size( 1850,900 ), style = wx.DEFAULT_FRAME_STYLE|wx.STAY_ON_TOP|wx.TAB_TRAVERSAL, name = u"kimotor" )
 
 		self.SetSizeHints( wx.DefaultSize, wx.DefaultSize )
 		self.SetBackgroundColour( wx.SystemSettings.GetColour( wx.SYS_COLOUR_3DLIGHT ) )
@@ -22,6 +22,7 @@ class KiMotorGUI ( wx.Frame ):
 		bSizer1 = wx.BoxSizer( wx.VERTICAL )
 
 		bSizer5 = wx.BoxSizer( wx.VERTICAL )
+		bSizerMainRow = wx.BoxSizer( wx.HORIZONTAL )
 
 		sbSizer2 = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Mechanical" ), wx.VERTICAL )
 
@@ -231,7 +232,7 @@ class KiMotorGUI ( wx.Frame ):
 
 		sbSizer2.Add( bSizer2111, 1, wx.EXPAND, 5 )
 
-		bSizer5.Add( sbSizer2, 1, wx.EXPAND|wx.TOP, 8 )
+		bSizerMainRow.Add( sbSizer2, 1, wx.EXPAND|wx.ALL, 6 )
 
 		sbSizer1 = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Electrical" ), wx.VERTICAL )
 
@@ -541,7 +542,7 @@ class KiMotorGUI ( wx.Frame ):
 
 		sbSizer1.Add( bSizer271, 1, wx.EXPAND, 5 )
 
-		bSizer5.Add( sbSizer1, 1, wx.EXPAND|wx.TOP, 8 )
+		bSizerMainRow.Add( sbSizer1, 1, wx.EXPAND|wx.ALL, 6 )
 
 		sbSizer111 = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Physics / Stats" ), wx.VERTICAL )
 
@@ -653,27 +654,7 @@ class KiMotorGUI ( wx.Frame ):
 
 		sbSizer111.Add( bSizerRingR, 1, wx.EXPAND, 5 )
 
-		bSizer2132 = wx.BoxSizer( wx.HORIZONTAL )
-
-		self.lbl_refresh_time132 = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"Phase inductance (L)", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_refresh_time132" )
-		self.lbl_refresh_time132.Wrap( -1 )
-		bSizer2132.Add( self.lbl_refresh_time132, 0, wx.ALL, 5 )
-
-		bSizer2132.Add( ( 0, 0), 1, wx.EXPAND, 5 )
-
-		self.lbl_phaseL = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"-", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_phaseL" )
-		self.lbl_phaseL.Wrap( -1 )
-		bSizer2132.Add( self.lbl_phaseL, 0, wx.ALL, 5 )
-
-		self.lbl_refresh_time1312111 = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"[uH]", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_refresh_time1312111" )
-		self.lbl_refresh_time1312111.Wrap( -1 )
-		bSizer2132.Add( self.lbl_refresh_time1312111, 0, wx.ALL, 5 )
-
-		sbSizer111.Add( bSizer2132, 1, wx.EXPAND, 5 )
-
-		bSizer5.Add( sbSizer111, 1, wx.EXPAND|wx.TOP, 8 )
-
-		bSizer5.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+		bSizerMainRow.Add( sbSizer111, 1, wx.EXPAND|wx.ALL, 6 )
 
 		bSizer3 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -704,7 +685,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_txtStatus = wx.TextCtrl( sbSizerStatus.GetStaticBox(), wx.ID_ANY, u"Ready.", wx.DefaultPosition, wx.Size( -1,60 ), wx.TE_MULTILINE|wx.TE_READONLY|wx.BORDER_SIMPLE, wx.DefaultValidator, u"m_txtStatus" )
 		sbSizerStatus.Add( self.m_txtStatus, 1, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 5 )
 
-		bSizer5.Add( sbSizerStatus, 0, wx.EXPAND|wx.TOP, 8 )
+		bSizerMainRow.Add( sbSizerStatus, 1, wx.EXPAND|wx.ALL, 6 )
 
 		# Visual cleanup: emphasize section blocks with bold titles and clear borders.
 		def _style_staticbox(box):
@@ -721,6 +702,7 @@ class KiMotorGUI ( wx.Frame ):
 		for _sb in (sbSizer2, sbSizer1, sbSizer111, sbSizerStatus):
 			_style_staticbox(_sb.GetStaticBox())
 
+		bSizer5.Insert( 0, bSizerMainRow, 1, wx.EXPAND|wx.TOP, 8 )
 		bSizer1.Add( bSizer5, 1, wx.EXPAND|wx.LEFT|wx.RIGHT, 5 )
 
 		self.SetSizer( bSizer1 )
