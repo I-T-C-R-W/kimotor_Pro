@@ -938,25 +938,61 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     best_slot = slot
             return best_slot
 
+        terminal_starts = []
+        terminal_angles = []
+        if phases == 1:
+            c0 = self.coil_slot_pins[0][0] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[0] else coils[0][0][0]
+            last_slot_1p = self.n_slots - 1
+            c1 = self.coil_slot_pins[last_slot_1p][1] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[last_slot_1p] else coils[0][-1][1]
+            terminal_starts = [c0, c1]
+            terminal_angles = [math.atan2(c0.y, c0.x), math.atan2(c1.y, c1.x)]
+        else:
+            phase_angles = []
+            for pidx in range(phases):
+                phase_slot = select_phase_terminal_slot(pidx)
+                c = self.coil_slot_pins[phase_slot][0] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[phase_slot] else coils[pidx][0][0]
+                a = math.atan2(c.y, c.x)
+                terminal_starts.append(c)
+                terminal_angles.append(a)
+                phase_angles.append(a)
+
+            if self.n_term > phases:
+                c_n = neutral_tap if neutral_tap is not None else coils[0][-1][1]
+                terminal_starts.append(c_n)
+                if len(phase_angles) >= 2:
+                    ph = []
+                    for a in phase_angles:
+                        if a < 0:
+                            a += 2 * math.pi
+                        ph.append(a)
+                    ph.sort()
+                    best_gap = -1.0
+                    best_mid = ph[0]
+                    for i in range(len(ph)):
+                        a0 = ph[i]
+                        a1 = ph[(i + 1) % len(ph)]
+                        if i == len(ph) - 1:
+                            a1 += 2 * math.pi
+                        gap = a1 - a0
+                        if gap > best_gap:
+                            best_gap = gap
+                            best_mid = a0 + gap / 2.0
+                    while best_mid > math.pi:
+                        best_mid -= 2 * math.pi
+                    terminal_angles.append(best_mid)
+                else:
+                    terminal_angles.append(math.atan2(c_n.y, c_n.x))
+
         for p in range(self.n_term):
-            if phases == 1:
-                if p == 0:
-                    c_start = self.coil_slot_pins[0][0] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[0] else coils[0][0][0]
-                else:
-                    last_slot_1p = self.n_slots - 1
-                    c_start = self.coil_slot_pins[last_slot_1p][1] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[last_slot_1p] else coils[0][-1][1]
+            if p < len(terminal_starts):
+                c_start = terminal_starts[p]
+                th = terminal_angles[p]
             else:
-                if p < phases:
-                    phase_slot = select_phase_terminal_slot(p)
-                    c_start = self.coil_slot_pins[phase_slot][0] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[phase_slot] else coils[p][0][0]
-                else:
-                    # 3P+N: optional 4th terminal taps the star/neutral point.
-                    c_start = neutral_tap if neutral_tap is not None else coils[0][-1][1]
+                c_start = neutral_tap if neutral_tap is not None else coils[0][-1][1]
+                th = math.atan2(c_start.y, c_start.x)
 
             # Via an die Anschlussecke
             self.add_through_via(c_start, net_coil)
-            
-            th = math.atan2(c_start.y, c_start.x)
             t_pt = self.fpoint(int(term_radius * math.cos(th)), int(term_radius * math.sin(th)))
             
             t = pcbnew.PCB_TRACK(self.board)
