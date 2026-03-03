@@ -480,15 +480,12 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 unique_ends.append(pt)
 
         if len(unique_ends) >= 2:
-            # Use the two closest-to-center unique endpoints as coil anchors.
-            # This avoids collapsing in/out to the same geometric side.
-            unique_ends.sort(key=lambda pt: math.hypot(pt.x, pt.y))
-            a = unique_ends[0]
-            b = unique_ends[1]
-            # Stable order by angle keeps slot-wise routing deterministic.
-            if math.atan2(a.y, a.x) > math.atan2(b.y, b.x):
-                a, b = b, a
-            return [a, b]
+            # Robust pin classification for layer stitching:
+            # - one anchor close to inner radius
+            # - one anchor towards outer radius
+            inner_anchor = min(unique_ends, key=lambda pt: abs(math.hypot(pt.x, pt.y) - self.r_coil_in))
+            outer_anchor = max(unique_ends, key=lambda pt: math.hypot(pt.x, pt.y))
+            return [inner_anchor, outer_anchor]
 
         fallback_a = self.fpoint(int(mpt[0][0,0]), int(mpt[0][0,1]))
         fallback_b = pe
@@ -662,14 +659,15 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     support_pts.append(pt)
 
         n_phase_coils = int(self.n_slots / phases)
-        rings_per_phase = max(1, phases)
+        ring_levels_total = min(n_rc, 5 if phases >= 3 else 4)
+        ring_levels_total = max(1, ring_levels_total)
         for p in range(phases):
             for i in range(n_rc):
                 # Zyklische Ebenen je Verbindung:
-                # - verhindert quasi-durchgehende Vollringe
+                # - begrenzt die Anzahl Ringebenen (typisch 4/5 statt z.B. 9)
                 # - sorgt dafür, dass in/out-Stubs einer Coil unterschiedlich lang sind
-                level = i % rings_per_phase
-                cri = current_radius - ((p * rings_per_phase) + level) * self.ring_dr
+                level = ((i * phases) + p) % ring_levels_total
+                cri = current_radius - (level * self.ring_dr)
                 if cri < lowest_used_radius:
                     lowest_used_radius = cri
 
