@@ -488,10 +488,29 @@ class KiMotorGUI ( wx.Frame ):
 
 		sbSizer1.Add( bSizer22111, 1, wx.EXPAND, 5 )
 
+		bSizerInnerFill = wx.BoxSizer( wx.HORIZONTAL )
+
 		self.m_cbFillInnerGND = wx.CheckBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Fill inner area with GND", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"m_cbFillInnerGND" )
 		self.m_cbFillInnerGND.SetValue( True ) 
 		self.m_chkFillInnerGnd = self.m_cbFillInnerGND
-		sbSizer1.Add( self.m_cbFillInnerGND, 0, wx.ALL, 5 )
+		bSizerInnerFill.Add( self.m_cbFillInnerGND, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		bSizerInnerFill.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.lbl_innerFillDia = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Dia:", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_innerFillDia.Wrap( -1 )
+		bSizerInnerFill.Add( self.lbl_innerFillDia, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		self.m_ctrlInnerGndDia = SpinCtrlDoublePersist( sbSizer1.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.Size( 120,20 ), wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_RIGHT|wx.SP_ARROW_KEYS, 0, 500, 0.000000, 0.1, u"m_ctrlInnerGndDia" )
+		self.m_ctrlInnerGndDia.SetDigits( 3 )
+		self.m_ctrlInnerGndDia.SetToolTip( u"Inner GND fill diameter [mm], 0 = auto" )
+		bSizerInnerFill.Add( self.m_ctrlInnerGndDia, 0, wx.ALL, 5 )
+
+		self.lbl_innerFillDiaUnit = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"[mm]", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_innerFillDiaUnit.Wrap( -1 )
+		bSizerInnerFill.Add( self.lbl_innerFillDiaUnit, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		sbSizer1.Add( bSizerInnerFill, 1, wx.EXPAND, 5 )
 
 		self.m_cbFillOuterGND = wx.CheckBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Fill outer area with GND", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"m_cbFillOuterGND" )
 		self.m_cbFillOuterGND.SetValue( True ) 

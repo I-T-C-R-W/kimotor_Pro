@@ -196,6 +196,10 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             self.fill_outer_gnd = bool(self.m_chkFillOuterGnd.IsChecked() if hasattr(self.m_chkFillOuterGnd, "IsChecked") else self.m_chkFillOuterGnd.GetValue())
         else:
             self.fill_outer_gnd = True
+        if hasattr(self, "m_ctrlInnerGndDia"):
+            self.inner_fill_dia = int(max(0.0, float(self.m_ctrlInnerGndDia.GetValue())) * self.SCALE)
+        else:
+            self.inner_fill_dia = 0
 
         self.r_fill = int(self.m_ctrlRfill.GetValue() * self.SCALE)         
         self.o_fill = int(self.m_ctrlFilletRadius.GetValue() * self.SCALE)  
@@ -366,7 +370,13 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     self.n_edges,
                     hs=self.mhs)
                 
-                cri_thermal = lowest_used_radius - self.trk_space - self.d_via/2.0
+                cri_thermal_auto = lowest_used_radius - self.trk_space - self.d_via/2.0
+                cri_thermal = cri_thermal_auto
+                if self.inner_fill_dia > 0:
+                    cri_thermal = int(self.inner_fill_dia / 2.0)
+                safe_inner_r = self.estimate_safe_inner_fill_radius("coil")
+                if safe_inner_r is not None:
+                    cri_thermal = min(cri_thermal, safe_inner_r)
                 self.do_thermal_zones(
                     self.r_out,
                     cri_thermal,
@@ -704,6 +714,53 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         except Exception:
             pass
         return int(4.0 * self.SCALE)
+
+    def estimate_safe_inner_fill_radius(self, net_name="coil"):
+        """Upper bound for center fill radius to avoid touching net copper/pads."""
+        safe_margin = max(self.trk_space, int(0.2 * self.SCALE))
+        r_safe = None
+
+        for item in self.board.GetTracks():
+            try:
+                net = item.GetNet()
+            except Exception:
+                net = None
+            if net is None or net.GetNetname() != net_name:
+                continue
+
+            width = item.GetWidth() if hasattr(item, "GetWidth") else self.trk_w
+            pts = []
+            for getter in ("GetStart", "GetEnd", "GetMid", "GetPosition"):
+                if hasattr(item, getter):
+                    try:
+                        p = getattr(item, getter)()
+                        pts.append((float(p.x), float(p.y)))
+                    except Exception:
+                        pass
+
+            for x, y in pts:
+                rr = math.hypot(x, y) - (width / 2.0) - safe_margin
+                if r_safe is None or rr < r_safe:
+                    r_safe = rr
+
+        for fp in self.board.GetFootprints():
+            for pad in fp.Pads():
+                try:
+                    net = pad.GetNet()
+                except Exception:
+                    net = None
+                if net is None or net.GetNetname() != net_name:
+                    continue
+                pos = pad.GetPosition()
+                size = pad.GetSize()
+                pad_r = 0.5 * max(float(size.x), float(size.y))
+                rr = math.hypot(float(pos.x), float(pos.y)) - pad_r - safe_margin
+                if r_safe is None or rr < r_safe:
+                    r_safe = rr
+
+        if r_safe is None:
+            return None
+        return max(0, int(r_safe))
 
     def hole_collides(self, position, placed_points, min_distance):
         for pt in placed_points:
