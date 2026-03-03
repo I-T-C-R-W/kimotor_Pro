@@ -39,7 +39,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_cbOutline.SetSelection( 0 )
 		bSizer21211.Add( self.m_cbOutline, 0, wx.ALL, 5 )
 
-		sbSizer2.Add( bSizer21211, 1, wx.EXPAND, 5 )
+		sbSizer2.Add( bSizer21211, 0, wx.EXPAND, 5 )
 
 		bSizer221 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -57,7 +57,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlDout.SetDigits( 2 )
 		bSizer221.Add( self.m_ctrlDout, 0, wx.ALL, 5 )
 
-		sbSizer2.Add( bSizer221, 1, wx.EXPAND, 5 )
+		sbSizer2.Add( bSizer221, 0, wx.EXPAND, 5 )
 
 		bSizer22112 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -75,7 +75,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlFilletRadius.SetDigits( 2 )
 		bSizer22112.Add( self.m_ctrlFilletRadius, 0, wx.ALL, 5 )
 
-		sbSizer2.Add( bSizer22112, 1, wx.EXPAND, 5 )
+		sbSizer2.Add( bSizer22112, 0, wx.EXPAND, 5 )
 
 		bSizer2212 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -93,7 +93,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlWmnt.SetDigits( 2 )
 		bSizer2212.Add( self.m_ctrlWmnt, 0, wx.ALL, 5 )
 
-		sbSizer2.Add( bSizer2212, 1, wx.EXPAND, 5 )
+		sbSizer2.Add( bSizer2212, 0, wx.EXPAND, 5 )
 
 		bSizer222 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -111,7 +111,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlDend.SetDigits( 2 )
 		bSizer222.Add( self.m_ctrlDend, 0, wx.ALL, 5 )
 
-		sbSizer2.Add( bSizer222, 1, wx.EXPAND, 5 )
+		sbSizer2.Add( bSizer222, 0, wx.EXPAND, 5 )
 
 		bSizer22 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -129,7 +129,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlDin.SetDigits( 2 )
 		bSizer22.Add( self.m_ctrlDin, 0, wx.ALL, 5 )
 
-		sbSizer2.Add( bSizer22, 1, wx.EXPAND, 5 )
+		sbSizer2.Add( bSizer22, 0, wx.EXPAND, 5 )
 
 		bSizer2211 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -147,7 +147,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlDbore.SetDigits( 2 )
 		bSizer2211.Add( self.m_ctrlDbore, 0, wx.ALL, 5 )
 
-		sbSizer2.Add( bSizer2211, 1, wx.EXPAND, 5 )
+		sbSizer2.Add( bSizer2211, 0, wx.EXPAND, 5 )
 
 		bSizer22121 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -167,7 +167,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlDterm.SetDigits( 2 )
 		bSizer22121.Add( self.m_ctrlDterm, 0, wx.ALL, 5 )
 
-		sbSizer2.Add( bSizer22121, 1, wx.EXPAND, 5 )
+		sbSizer2.Add( bSizer22121, 0, wx.EXPAND, 5 )
 
 		bSizer27 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -186,7 +186,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_cbMountSize.SetSelection( 0 )
 		bSizer27.Add( self.m_cbMountSize, 0, wx.ALL, 5 )
 
-		sbSizer2.Add( bSizer27, 1, wx.EXPAND, 5 )
+		sbSizer2.Add( bSizer27, 0, wx.EXPAND, 5 )
 
 		bSizer213 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -208,7 +208,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_mhOutR.SetDigits( 2 )
 		bSizer213.Add( self.m_mhOutR, 0, wx.ALL, 5 )
 
-		sbSizer2.Add( bSizer213, 1, wx.EXPAND, 5 )
+		sbSizer2.Add( bSizer213, 0, wx.EXPAND, 5 )
 
 		bSizer2111 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -230,7 +230,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_mhInR.SetDigits( 2 )
 		bSizer2111.Add( self.m_mhInR, 0, wx.ALL, 5 )
 
-		sbSizer2.Add( bSizer2111, 1, wx.EXPAND, 5 )
+		sbSizer2.Add( bSizer2111, 0, wx.EXPAND, 5 )
 
 		bSizerMainRow.Add( sbSizer2, 15, wx.EXPAND|wx.ALL, 6 )
 
@@ -249,7 +249,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_cbScheme.SetSelection( 1 )
 		bSizer23.Add( self.m_cbScheme, 0, wx.ALIGN_CENTER_HORIZONTAL|wx.ALL, 5 )
 
-		sbSizer1.Add( bSizer23, 1, wx.EXPAND, 5 )
+		sbSizer1.Add( bSizer23, 0, wx.EXPAND, 5 )
 
 		bSizer2 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -277,7 +277,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlLoops.SetDigits( 0 )
 		bSizer21.Add( self.m_ctrlLoops, 0, wx.ALL, 5 )
 
-		sbSizer1.Add( bSizer21, 1, wx.EXPAND, 5 )
+		sbSizer1.Add( bSizer21, 0, wx.EXPAND, 5 )
 
 		bSizer214 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -292,7 +292,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_cbStrategy.SetSelection( 1 )
 		bSizer214.Add( self.m_cbStrategy, 0, wx.ALL, 5 )
 
-		sbSizer1.Add( bSizer214, 1, wx.EXPAND, 5 )
+		sbSizer1.Add( bSizer214, 0, wx.EXPAND, 5 )
 
 		bSizer2121 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -308,7 +308,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_cbPreset.Enable( False )
 		bSizer2121.Add( self.m_cbPreset, 0, wx.ALL, 5 )
 
-		sbSizer1.Add( bSizer2121, 1, wx.EXPAND, 5 )
+		sbSizer1.Add( bSizer2121, 0, wx.EXPAND, 5 )
 
 		bSizer212 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -322,7 +322,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlLayers.SetDigits( 0 )
 		bSizer212.Add( self.m_ctrlLayers, 0, wx.ALL, 5 )
 
-		sbSizer1.Add( bSizer212, 1, wx.EXPAND, 5 )
+		sbSizer1.Add( bSizer212, 0, wx.EXPAND, 5 )
 
 		bSizer211 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -340,7 +340,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlTrackWidth.SetDigits( 3 )
 		bSizer211.Add( self.m_ctrlTrackWidth, 0, wx.ALL, 5 )
 
-		sbSizer1.Add( bSizer211, 1, wx.EXPAND, 5 )
+		sbSizer1.Add( bSizer211, 0, wx.EXPAND, 5 )
         
 		# TRACK SPACING
 		bSizerSpacing = wx.BoxSizer( wx.HORIZONTAL )
@@ -359,7 +359,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlTrackSpacing.SetDigits( 3 )
 		bSizerSpacing.Add( self.m_ctrlTrackSpacing, 0, wx.ALL, 5 )
 
-		sbSizer1.Add( bSizerSpacing, 1, wx.EXPAND, 5 )
+		sbSizer1.Add( bSizerSpacing, 0, wx.EXPAND, 5 )
         
 		# RING WIDTH (Sammelschienen Breite)
 		bSizerRingW = wx.BoxSizer( wx.HORIZONTAL )
@@ -378,7 +378,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlRingWidth.SetDigits( 3 )
 		bSizerRingW.Add( self.m_ctrlRingWidth, 0, wx.ALL, 5 )
 
-		sbSizer1.Add( bSizerRingW, 1, wx.EXPAND, 5 )
+		sbSizer1.Add( bSizerRingW, 0, wx.EXPAND, 5 )
 
 		# RING SPACING (Sammelschienen Abstand)
 		bSizerRingSpace = wx.BoxSizer( wx.HORIZONTAL )
@@ -397,7 +397,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlRingSpacing.SetDigits( 3 )
 		bSizerRingSpace.Add( self.m_ctrlRingSpacing, 0, wx.ALL, 5 )
 
-		sbSizer1.Add( bSizerRingSpace, 1, wx.EXPAND, 5 )
+		sbSizer1.Add( bSizerRingSpace, 0, wx.EXPAND, 5 )
 
 		# VIA DIAMETER
 		bSizerViaDia = wx.BoxSizer( wx.HORIZONTAL )
@@ -416,7 +416,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlViaDia.SetDigits( 3 )
 		bSizerViaDia.Add( self.m_ctrlViaDia, 0, wx.ALL, 5 )
 
-		sbSizer1.Add( bSizerViaDia, 1, wx.EXPAND, 5 )
+		sbSizer1.Add( bSizerViaDia, 0, wx.EXPAND, 5 )
 
 		# VIA DRILL
 		bSizerViaDrill = wx.BoxSizer( wx.HORIZONTAL )
@@ -435,7 +435,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlViaDrill.SetDigits( 3 )
 		bSizerViaDrill.Add( self.m_ctrlViaDrill, 0, wx.ALL, 5 )
 
-		sbSizer1.Add( bSizerViaDrill, 1, wx.EXPAND, 5 )
+		sbSizer1.Add( bSizerViaDrill, 0, wx.EXPAND, 5 )
 
 		bSizerSupportHoleDia = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -453,7 +453,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlSupportHoleDia.SetDigits( 3 )
 		bSizerSupportHoleDia.Add( self.m_ctrlSupportHoleDia, 0, wx.ALL, 5 )
 
-		sbSizer1.Add( bSizerSupportHoleDia, 1, wx.EXPAND, 5 )
+		sbSizer1.Add( bSizerSupportHoleDia, 0, wx.EXPAND, 5 )
 
 		bSizerSupportVia = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -469,7 +469,7 @@ class KiMotorGUI ( wx.Frame ):
 		bSizerSupportVia.Add( self.m_cbSupportViaMode, 0, wx.ALL, 5 )
 		self.m_cbSupportVias = self.m_cbSupportViaMode
 
-		sbSizer1.Add( bSizerSupportVia, 1, wx.EXPAND, 5 )
+		sbSizer1.Add( bSizerSupportVia, 0, wx.EXPAND, 5 )
 
 		bSizer22111 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -487,7 +487,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlRfill.SetDigits( 3 )
 		bSizer22111.Add( self.m_ctrlRfill, 0, wx.ALL, 5 )
 
-		sbSizer1.Add( bSizer22111, 1, wx.EXPAND, 5 )
+		sbSizer1.Add( bSizer22111, 0, wx.EXPAND, 5 )
 
 		bSizerInnerFill = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -511,7 +511,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.lbl_innerFillDiaUnit.Wrap( -1 )
 		bSizerInnerFill.Add( self.lbl_innerFillDiaUnit, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
 
-		sbSizer1.Add( bSizerInnerFill, 1, wx.EXPAND, 5 )
+		sbSizer1.Add( bSizerInnerFill, 0, wx.EXPAND, 5 )
 
 		self.m_cbFillOuterGND = wx.CheckBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Fill outer area with GND", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"m_cbFillOuterGND" )
 		self.m_cbFillOuterGND.SetValue( True ) 
@@ -540,7 +540,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_termSize.SetSelection( 1 )
 		bSizer271.Add( self.m_termSize, 0, wx.ALL, 5 )
 
-		sbSizer1.Add( bSizer271, 1, wx.EXPAND, 5 )
+		sbSizer1.Add( bSizer271, 0, wx.EXPAND, 5 )
 
 		bSizerMainRow.Add( sbSizer1, 15, wx.EXPAND|wx.ALL, 6 )
 
@@ -562,7 +562,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ambT.SetDigits( 1 )
 		bSizer2112.Add( self.m_ambT, 0, wx.ALL, 5 )
 
-		sbSizer111.Add( bSizer2112, 1, wx.EXPAND, 5 )
+		sbSizer111.Add( bSizer2112, 0, wx.EXPAND, 5 )
 
 		bSizer21321 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -580,7 +580,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.lbl_refresh_time13121111.Wrap( -1 )
 		bSizer21321.Add( self.lbl_refresh_time13121111, 0, wx.ALL, 5 )
 
-		sbSizer111.Add( bSizer21321, 1, wx.EXPAND, 5 )
+		sbSizer111.Add( bSizer21321, 0, wx.EXPAND, 5 )
 
 		bSizer21312 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -598,7 +598,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.lbl_refresh_time13121.Wrap( -1 )
 		bSizer21312.Add( self.lbl_refresh_time13121, 0, wx.ALL, 5 )
 
-		sbSizer111.Add( bSizer21312, 1, wx.EXPAND, 5 )
+		sbSizer111.Add( bSizer21312, 0, wx.EXPAND, 5 )
 
 		bSizerTotalR = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -616,7 +616,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.lbl_totalRUnit.Wrap( -1 )
 		bSizerTotalR.Add( self.lbl_totalRUnit, 0, wx.ALL, 5 )
 
-		sbSizer111.Add( bSizerTotalR, 1, wx.EXPAND, 5 )
+		sbSizer111.Add( bSizerTotalR, 0, wx.EXPAND, 5 )
 
 		bSizerCoilR = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -634,7 +634,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.lbl_coilRUnit.Wrap( -1 )
 		bSizerCoilR.Add( self.lbl_coilRUnit, 0, wx.ALL, 5 )
 
-		sbSizer111.Add( bSizerCoilR, 1, wx.EXPAND, 5 )
+		sbSizer111.Add( bSizerCoilR, 0, wx.EXPAND, 5 )
 
 		bSizerRingR = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -652,7 +652,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.lbl_ringRUnit.Wrap( -1 )
 		bSizerRingR.Add( self.lbl_ringRUnit, 0, wx.ALL, 5 )
 
-		sbSizer111.Add( bSizerRingR, 1, wx.EXPAND, 5 )
+		sbSizer111.Add( bSizerRingR, 0, wx.EXPAND, 5 )
 
 		bSizerMainRow.Add( sbSizer111, 10, wx.EXPAND|wx.ALL, 6 )
 
@@ -726,13 +726,18 @@ class KiMotorGUI ( wx.Frame ):
 		sbSizer111.GetStaticBox().SetMinSize(wx.Size(380, -1))
 		sbSizerStatus.GetStaticBox().SetMinSize(wx.Size(280, -1))
 
-		# Free horizontal space for labels: shrink wide value widgets a bit.
-		for _c in self.GetChildren():
-			if isinstance(_c, (wx.ComboBox, wx.SpinCtrlDouble)):
-				w, h = _c.GetSize()
-				if w >= 150:
-					_c.SetMinSize(wx.Size(110, h))
-					_c.SetSize(wx.Size(110, h))
+		# Free horizontal space for labels: shrink wide value widgets recursively.
+		def _shrink_desc_inputs(win):
+			for _child in win.GetChildren():
+				if isinstance(_child, (wx.ComboBox, wx.SpinCtrlDouble)):
+					w, h = _child.GetSize()
+					if w >= 130:
+						_child.SetMinSize(wx.Size(110, h))
+						_child.SetSize(wx.Size(110, h))
+				_shrink_desc_inputs(_child)
+
+		for _sb in (sbSizer2, sbSizer1, sbSizer111, sbSizerStatus):
+			_shrink_desc_inputs(_sb.GetStaticBox())
 
 		bSizer5.Insert( 0, bSizerMainRow, 1, wx.EXPAND|wx.TOP, 8 )
 		bSizer1.Add( bSizer5, 1, wx.EXPAND|wx.LEFT|wx.RIGHT, 5 )
