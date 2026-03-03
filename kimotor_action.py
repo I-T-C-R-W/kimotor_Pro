@@ -1004,53 +1004,20 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 terminal_starts = [c0, c1]
                 terminal_angles = [cand_angles[1], cand_angles[0]]
         elif phases == 3 and self.n_term == 3:
-            # 3P clustered terminals: keep pin 2 centered, place pins 1/3 tangentially
-            # based on THT terminal diameter so footprints do not overlap.
+            # Keep 3P trunk connections radial from each phase start (no crossing with rings).
+            # Only offset outer terminal footprints sideways by short side stubs.
             phase_starts = [get_slot_start(0, 0), get_slot_start(1, 1), get_slot_start(2, 2)]
-            base = math.atan2(phase_starts[1].y, phase_starts[1].x)
-            cluster_base = base
             term_od = self.get_selected_terminal_od_iu()
-            tangential_pitch = max(
-                term_od + int(0.6 * self.SCALE),
-                self.d_via + self.trk_space + int(0.8 * self.SCALE)
-            )
-            spread = tangential_pitch / max(float(term_radius), 1.0)
-            spread = min(0.35, max(0.06, spread))
-            cand_angles = [base + spread, base, base - spread]
-
-            best_perm = (0, 1, 2)
-            best_cost = None
-            for perm in itertools.permutations(range(3)):
-                cost = 0.0
-                segs = []
-                for i in range(3):
-                    s = phase_starts[i]
-                    th_i = cand_angles[perm[i]]
-                    tpt = (term_radius * math.cos(th_i), term_radius * math.sin(th_i))
-                    spt = (float(s.x), float(s.y))
-                    cost += abs(self._angle_diff(math.atan2(s.y, s.x), th_i))
-                    cost += math.hypot(tpt[0] - spt[0], tpt[1] - spt[1]) / max(float(self.SCALE), 1.0)
-                    segs.append((spt, tpt))
-                crossing = 0
-                for i in range(3):
-                    for j in range(i + 1, 3):
-                        if segs_intersect(segs[i][0], segs[i][1], segs[j][0], segs[j][1]):
-                            crossing += 1
-                cost += 10000.0 * crossing
-                if best_cost is None or cost < best_cost:
-                    best_cost = cost
-                    best_perm = perm
-
+            side_shift_iu = max(int(0.45 * term_od), int(0.8 * self.SCALE))
             for i, c in enumerate(phase_starts):
                 terminal_starts.append(c)
-                terminal_angles.append(cand_angles[best_perm[i]])
-                dth = self._angle_diff(cand_angles[best_perm[i]], base)
-                if abs(dth) < 1e-6:
+                terminal_angles.append(math.atan2(c.y, c.x))
+                if i == 1:
                     terminal_side_shift.append(0)
+                elif i == 0:
+                    terminal_side_shift.append(side_shift_iu)
                 else:
-                    # Shift outer pads tangentially so traces hit pad side, not center.
-                    sign = 1 if dth > 0 else -1
-                    terminal_side_shift.append(sign * int(0.45 * term_od))
+                    terminal_side_shift.append(-side_shift_iu)
         else:
             # User preference: 3P terminals grouped in one local cluster (not 120deg separated).
             phase_starts = []
@@ -1153,6 +1120,14 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                                 int(t_pt.x + shift * tx),
                                 int(t_pt.y + shift * ty)
                             )
+                            # Keep main run radial and add a short side-stub to the shifted pad center.
+                            ts = pcbnew.PCB_TRACK(self.board)
+                            ts.SetLayer(pcbnew.B_Cu)
+                            ts.SetWidth(self.trk_w)
+                            if net_coil: ts.SetNet(net_coil)
+                            ts.SetStart(t_pt)
+                            ts.SetEnd(fp_pos)
+                            self.board.Add(ts)
                     m.SetPosition(fp_pos)
                     m.Rotate(fp_pos, self.eda_angle(-th))
                     for pad in m.Pads():
