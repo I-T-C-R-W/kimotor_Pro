@@ -469,17 +469,6 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_ctrlSupportHoleDia.SetDigits( 3 )
 		bSizerSupportHoleDia.Add( self.m_ctrlSupportHoleDia, 0, wx.ALL, 5 )
 
-		# Move Support/Fill/Terminals controls into Mechanical column.
-		for _w in (
-			self.lbl_supportHoleDia, self.lbl_supportHoleDiaUnit, self.m_ctrlSupportHoleDia,
-			self.lbl_supportVia, self.m_cbSupportViaMode,
-			self.lbl_refresh_time2111, self.lbl_refresh_time1122, self.m_ctrlRfill,
-			self.m_cbFillInnerGND, self.lbl_innerFillDia, self.m_ctrlInnerGndDia, self.lbl_innerFillDiaUnit,
-			self.m_cbFillOuterGND,
-			self.lbl_refresh_time131122, self.m_cbTP, self.lbl_refresh_time1311221, self.m_termSize
-		):
-			_w.Reparent(sbSizer2.GetStaticBox())
-
 		sbMechSupport.Add( bSizerSupportHoleDia, 0, wx.EXPAND, 5 )
 
 		bSizerSupportVia = wx.BoxSizer( wx.HORIZONTAL )
@@ -566,6 +555,18 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_termSize = wx.ComboBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"0.1", wx.DefaultPosition, wx.Size( 150,20 ), m_termSizeChoices, wx.CB_DROPDOWN|wx.CB_READONLY, wx.DefaultValidator, u"m_cbTPSize" )
 		self.m_termSize.SetSelection( 1 )
 		bSizer271.Add( self.m_termSize, 0, wx.ALL, 5 )
+
+		# Move Support/Fill/Terminals controls into Mechanical column
+		# only after all controls exist.
+		for _w in (
+			self.lbl_supportHoleDia, self.lbl_supportHoleDiaUnit, self.m_ctrlSupportHoleDia,
+			self.lbl_supportVia, self.m_cbSupportViaMode,
+			self.lbl_refresh_time2111, self.lbl_refresh_time1122, self.m_ctrlRfill,
+			self.m_cbFillInnerGND, self.lbl_innerFillDia, self.m_ctrlInnerGndDia, self.lbl_innerFillDiaUnit,
+			self.m_cbFillOuterGND,
+			self.lbl_refresh_time131122, self.m_cbTP, self.lbl_refresh_time1311221, self.m_termSize
+		):
+			_w.Reparent(sbSizer2.GetStaticBox())
 
 		sbMechSupport.Add( bSizer271, 0, wx.EXPAND, 5 )
 
