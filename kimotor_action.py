@@ -680,6 +680,10 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         hole_width = max(self.d_support_hole + pad_margin, self.d_support_hole + 1)
         return self.add_custom_through_via(position, net=None, drill=self.d_support_hole, width=hole_width)
 
+    def get_support_hole_width(self):
+        pad_margin = int(0.25 * self.SCALE)
+        return max(self.d_support_hole + pad_margin, self.d_support_hole + 1)
+
     def hole_collides(self, position, placed_points, min_distance):
         for pt in placed_points:
             if math.hypot(pt.x - position.x, pt.y - position.y) < min_distance:
@@ -698,14 +702,15 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             support_via_mode = 2
         support_collisions = 0
         support_pts = []
-        support_min_dist = max(self.d_support_hole + self.trk_space, self.d_support_hole)
+        support_hole_width = self.get_support_hole_width()
+        support_min_dist = max(support_hole_width + self.trk_space, support_hole_width)
 
         # 1. PLATZIERUNG DER ISOLIERTEN STÜTZ-THT-LÖCHER AUSSERHALB DER SPULEN
         # support_via_mode:
         # 0 = keine Stützlöcher
         # 2 = zwei äußere Stützlöcher je Slot
         # 4 = vier äußere Stützlöcher je Slot
-        r_out_support = self.r_coil_out + self.trk_space + self.trk_w + (self.d_support_hole / 2.0)
+        r_out_support = self.r_coil_out + self.trk_space + self.trk_w + (support_hole_width / 2.0)
         th_out_off_a = (th0 / 2.0) * 0.78
         th_out_off_b = (th0 / 2.0) * 0.48
         
@@ -728,18 +733,18 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         if support_via_mode == 0:
             first_ring_offset = 0
         elif support_via_mode == 2:
-            first_ring_offset = int(0.5 * max(self.d_via, self.d_support_hole))
+            first_ring_offset = int(0.5 * max(self.d_via, support_hole_width))
         else:
-            first_ring_offset = max(self.d_via, self.d_support_hole)
+            first_ring_offset = max(self.d_via, support_hole_width)
         # Give extra clearance to support TH holes near the first ring.
         if support_via_mode in (2, 4):
-            first_ring_offset += int(0.5 * self.d_support_hole)
+            first_ring_offset += int(0.5 * support_hole_width)
         current_radius = self.r_coil_in - (self.d_via / 2.0) - self.ring_space - (self.ring_w / 2.0) - first_ring_offset
         lowest_used_radius = current_radius
 
         # Mode 4: zusätzlich 2 innere unverbundene Stützlöcher je Slot (nahe Ringanschlüssen).
         if support_via_mode == 4:
-            r_in_support = current_radius + (self.ring_w / 2.0) + self.trk_space + (self.d_support_hole / 2.0)
+            r_in_support = current_radius + (self.ring_w / 2.0) + self.trk_space + (support_hole_width / 2.0)
             th_in_off = (th0 / 2.0) * 0.45
             for slot in range(self.n_slots):
                 th_c = slot * th0
