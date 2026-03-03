@@ -473,23 +473,26 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             key = (pt.x, pt.y)
             pt_counts[key] = pt_counts.get(key, 0) + 1
 
-        inner_anchor = None
-        outer_anchor = None
+        unique_ends = []
         for pt in endpoint_candidates:
             key = (pt.x, pt.y)
             if pt_counts[key] == 1:
-                r = math.hypot(pt.x, pt.y)
-                if abs(r - self.r_coil_in) < self.SCALE * 0.5:
-                    inner_anchor = pt
-                else:
-                    outer_anchor = pt
+                unique_ends.append(pt)
 
-        if inner_anchor is None:
-            inner_anchor = self.fpoint(int(mpt[0][0,0]), int(mpt[0][0,1]))
-        if outer_anchor is None:
-            outer_anchor = pe
+        if len(unique_ends) >= 2:
+            # Use the two closest-to-center unique endpoints as coil anchors.
+            # This avoids collapsing in/out to the same geometric side.
+            unique_ends.sort(key=lambda pt: math.hypot(pt.x, pt.y))
+            a = unique_ends[0]
+            b = unique_ends[1]
+            # Stable order by angle keeps slot-wise routing deterministic.
+            if math.atan2(a.y, a.x) > math.atan2(b.y, b.x):
+                a, b = b, a
+            return [a, b]
 
-        return [inner_anchor, outer_anchor]
+        fallback_a = self.fpoint(int(mpt[0][0,0]), int(mpt[0][0,1]))
+        fallback_b = pe
+        return [fallback_a, fallback_b]
 
     def do_coils(self, ri, ro, n_slots, n_loops=1, lset=None, mode=0):
         th0 = 2*math.pi/n_slots
@@ -503,6 +506,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         coil_p =[]
         for i in range(self.phases):
             coil_p.append([])
+        coil_slot = [None] * n_slots
         
         net_coil = self.board.FindNet("coil")
 
@@ -558,7 +562,11 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 coil_start_pin = self.fpoint(0, 0)
             if coil_end_pin is None:
                 coil_end_pin = coil_start_pin
-            coil_p[p % self.phases].append([coil_start_pin, coil_end_pin])
+            pins = [coil_start_pin, coil_end_pin]
+            coil_p[p % self.phases].append(pins)
+            coil_slot[p] = pins
+
+        self.coil_slot_pins = coil_slot
 
         return coil_p
 
@@ -653,15 +661,26 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     self.add_support_hole(pt)
                     support_pts.append(pt)
 
+        n_phase_coils = int(self.n_slots / phases)
+        rings_per_phase = max(1, phases)
         for p in range(phases):
-            # Radius für diesen speziellen Phasenring
-            cri = current_radius - p * self.ring_dr
-            lowest_used_radius = cri
-
             for i in range(n_rc):
-                # Durch den Löschvorgang des Stummels liegen c1e und c2s jetzt EXAKT an den physikalischen Ecken!
-                c1e = coils[p][i][1]    # Ende von Coil i (auf B_Cu)
-                c2s = coils[p][i+1][0]  # Start von Coil i+1 (auf F_Cu)
+                # Zyklische Ebenen je Verbindung:
+                # - verhindert quasi-durchgehende Vollringe
+                # - sorgt dafür, dass in/out-Stubs einer Coil unterschiedlich lang sind
+                level = i % rings_per_phase
+                cri = current_radius - ((p * rings_per_phase) + level) * self.ring_dr
+                if cri < lowest_used_radius:
+                    lowest_used_radius = cri
+
+                slot_a = p + i * phases
+                slot_b = p + (i + 1) * phases
+                if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[slot_a] and self.coil_slot_pins[slot_b]:
+                    c1e = self.coil_slot_pins[slot_a][1]
+                    c2s = self.coil_slot_pins[slot_b][0]
+                else:
+                    c1e = coils[p][i][1]
+                    c2s = coils[p][i+1][0]
 
                 # Löt-Via in die inneren Spulenecken setzen (Netz-Verbindung vorhanden)
                 self.add_through_via(c1e, net_coil)
@@ -719,7 +738,11 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             star_pts =[]
             
             for p in range(phases):
-                c_end = coils[p][-1][1]
+                last_slot = p + (n_phase_coils - 1) * phases
+                if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[last_slot]:
+                    c_end = self.coil_slot_pins[last_slot][1]
+                else:
+                    c_end = coils[p][-1][1]
                 
                 # Eck-Via für die allerletzte Spule setzen
                 self.add_through_via(c_end, net_coil)
@@ -767,12 +790,14 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         for p in range(self.n_term):
             if phases == 1:
                 if p == 0:
-                    c_start = coils[0][0][0]
+                    c_start = self.coil_slot_pins[0][0] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[0] else coils[0][0][0]
                 else:
-                    c_start = coils[0][-1][1]
+                    last_slot_1p = self.n_slots - 1
+                    c_start = self.coil_slot_pins[last_slot_1p][1] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[last_slot_1p] else coils[0][-1][1]
             else:
                 if p < phases:
-                    c_start = coils[p][0][0]
+                    first_slot = p
+                    c_start = self.coil_slot_pins[first_slot][0] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[first_slot] else coils[p][0][0]
                 else:
                     # 3P+N: optional 4th terminal taps the star/neutral point.
                     c_start = neutral_tap if neutral_tap is not None else coils[0][-1][1]
