@@ -480,12 +480,29 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 unique_ends.append(pt)
 
         if len(unique_ends) >= 2:
-            # Robust pin classification for layer stitching:
-            # - one anchor close to inner radius
-            # - one anchor towards outer radius
-            inner_anchor = min(unique_ends, key=lambda pt: abs(math.hypot(pt.x, pt.y) - self.r_coil_in))
-            outer_anchor = max(unique_ends, key=lambda pt: math.hypot(pt.x, pt.y))
-            return [inner_anchor, outer_anchor]
+            tol = self.SCALE * 0.75
+            inner_candidates = [
+                pt for pt in unique_ends
+                if abs(math.hypot(pt.x, pt.y) - self.r_coil_in) <= tol
+            ]
+
+            # On terminal layers we want the two open inner corners after stub removal.
+            if is_terminal_layer and len(inner_candidates) >= 2:
+                inner_candidates.sort(key=lambda pt: math.atan2(pt.y, pt.x))
+                return [inner_candidates[0], inner_candidates[-1]]
+
+            if inner_candidates:
+                inner_anchor = min(inner_candidates, key=lambda pt: abs(math.hypot(pt.x, pt.y) - self.r_coil_in))
+                outer_anchor = max(unique_ends, key=lambda pt: math.hypot(pt.x, pt.y))
+                return [inner_anchor, outer_anchor]
+
+            # Fallback: nearest two endpoints to inner radius.
+            unique_ends.sort(key=lambda pt: abs(math.hypot(pt.x, pt.y) - self.r_coil_in))
+            a = unique_ends[0]
+            b = unique_ends[1]
+            if math.atan2(a.y, a.x) > math.atan2(b.y, b.x):
+                a, b = b, a
+            return [a, b]
 
         fallback_a = self.fpoint(int(mpt[0][0,0]), int(mpt[0][0,1]))
         fallback_b = pe
@@ -553,7 +570,8 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 if is_first:
                     coil_start_pin = inner_pin
                 if is_last:
-                    coil_end_pin = inner_pin
+                    # Keep end-pin on the opposite terminal corner to avoid center/mid taps.
+                    coil_end_pin = outer_pin if is_terminal_layer else inner_pin
 
             if coil_start_pin is None:
                 coil_start_pin = self.fpoint(0, 0)
