@@ -588,13 +588,25 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         radii = [math.hypot(x, y) for (x, y) in pts]
         r_min = min(radii)
         tol = max(self.dr * 0.75, self.trk_w * 1.5, self.SCALE * 0.3)
+        tol_inner = max(self.dr * 1.25, self.trk_w * 2.0, self.SCALE * 0.5)
 
         inner = []
         for (x, y) in pts:
             r = math.hypot(x, y)
-            if abs(r - r_min) <= tol:
+            # Primary target: real coil inner radius (corner region), not geometric r_min,
+            # because r_min may hit the center bridge and cause mid-taps.
+            if abs(r - self.r_coil_in) <= tol_inner:
                 dth = self._angle_diff(math.atan2(y, x), th_center)
                 inner.append((x, y, dth))
+
+        # Fallback to r_min-based selection only if no/too few candidates were found.
+        if len(inner) < 2:
+            inner = []
+            for (x, y) in pts:
+                r = math.hypot(x, y)
+                if abs(r - r_min) <= tol:
+                    dth = self._angle_diff(math.atan2(y, x), th_center)
+                    inner.append((x, y, dth))
 
         if len(inner) < 2:
             ranked = []
