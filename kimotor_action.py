@@ -372,11 +372,17 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 
                 cri_thermal_auto = lowest_used_radius - self.trk_space - self.d_via/2.0
                 cri_thermal = cri_thermal_auto
+                cri_requested = cri_thermal
                 if self.inner_fill_dia > 0:
                     cri_thermal = int(self.inner_fill_dia / 2.0)
+                    cri_requested = cri_thermal
                 safe_inner_r = self.estimate_safe_inner_fill_radius("coil")
                 if safe_inner_r is not None:
                     cri_thermal = min(cri_thermal, safe_inner_r)
+                if self.inner_fill_dia > 0 and cri_thermal < cri_requested:
+                    self.set_status(
+                        f"Running: Inner GND dia clipped to {2.0*cri_thermal/self.SCALE:.2f} mm (safety)"
+                    )
                 self.do_thermal_zones(
                     self.r_out,
                     cri_thermal,
@@ -1342,6 +1348,10 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             z.SetLocalClearance( self.trk_w )
             z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
             z.SetPadConnection(pcbnew.ZONE_CONNECTION_FULL)
+            try:
+                z.SetAssignedPriority(0)
+            except Exception:
+                pass
             self.board.Add(z)
 
         if fill_inner_area_gnd:
@@ -1355,6 +1365,10 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             z.SetLayerSet(ls)
             z.SetNet(ni_gnd)
             z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
+            try:
+                z.SetAssignedPriority(20)
+            except Exception:
+                pass
             self.board.Add(z)
 
         nls = pcbnew.LSET()
@@ -1386,6 +1400,10 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
             z.SetLayerSet(nls)
             z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
+            try:
+                z.SetAssignedPriority(0)
+            except Exception:
+                pass
             self.board.Add(z)
 
         if fill_inner_area_gnd:
@@ -1398,6 +1416,10 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             z.AddPolygon( self.fpoint_vector(cp) )
             z.SetLayerSet(nls)
             z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
+            try:
+                z.SetAssignedPriority(20)
+            except Exception:
+                pass
             self.board.Add(z)
 
         filler.Fill(self.board.Zones())
