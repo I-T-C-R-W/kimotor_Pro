@@ -1163,7 +1163,9 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     self.board.Add(m)
 
         self.support_hole_collision_count = support_collisions
-        return term_radius
+        # Return the lowest ring radius (not terminal radius), so inner GND fill
+        # starts inside the ring stack and does not swallow terminal area.
+        return lowest_used_radius
 
     def do_outline(self, r_in, r_out, n_edge=0, r_fill=0):
         edge = pcbnew.PCB_SHAPE(self.board, pcbnew.SHAPE_T_CIRCLE)
