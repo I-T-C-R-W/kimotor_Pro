@@ -795,6 +795,46 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         support_hole_width = self.get_support_hole_width()
         support_min_dist = max(support_hole_width + self.trk_space, support_hole_width)
 
+        def add_ring_path(layer, radius, th_start, th_end, p_start, p_end, width):
+            """Draw robust ring connection as segmented path (avoids arc edge-case disconnects)."""
+            d_th = th_end - th_start
+            if d_th > math.pi:
+                d_th -= 2 * math.pi
+            elif d_th < -math.pi:
+                d_th += 2 * math.pi
+
+            # Very small angle: direct short track.
+            if abs(d_th) < 1e-4:
+                t = pcbnew.PCB_TRACK(self.board)
+                t.SetLayer(layer)
+                t.SetWidth(width)
+                if net_coil:
+                    t.SetNet(net_coil)
+                t.SetStart(p_start)
+                t.SetEnd(p_end)
+                self.board.Add(t)
+                return
+
+            # 10 degree max step keeps geometry smooth and electrically contiguous.
+            step = math.pi / 18.0
+            nseg = max(2, int(abs(d_th) / step) + 1)
+            prev = p_start
+            for k in range(1, nseg + 1):
+                if k == nseg:
+                    nxt = p_end
+                else:
+                    th_k = th_start + d_th * (k / float(nseg))
+                    nxt = self.fpoint(int(radius * math.cos(th_k)), int(radius * math.sin(th_k)))
+                t = pcbnew.PCB_TRACK(self.board)
+                t.SetLayer(layer)
+                t.SetWidth(width)
+                if net_coil:
+                    t.SetNet(net_coil)
+                t.SetStart(prev)
+                t.SetEnd(nxt)
+                self.board.Add(t)
+                prev = nxt
+
         # 1. PLATZIERUNG DER ISOLIERTEN STÜTZ-THT-LÖCHER AUSSERHALB DER SPULEN
         # support_via_mode:
         # 0 = keine Stützlöcher
@@ -915,22 +955,8 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     self.add_through_via(via2_pt, net_coil)
                     arc_layer = pcbnew.F_Cu
 
-                # 3. Den dicken Sammel-Ring AUF DER OBERSEITE (F_Cu) zeichnen (kreuzt über die blauen Linien drüber)
-                d_th = th2 - th1
-                if d_th > math.pi: d_th -= 2*math.pi
-                elif d_th < -math.pi: d_th += 2*math.pi
-                
-                th_mid = th1 + d_th / 2.0
-                via_mid = self.fpoint(int(cri * math.cos(th_mid)), int(cri * math.sin(th_mid)))
-                
-                arc = pcbnew.PCB_ARC(self.board)
-                arc.SetLayer(arc_layer)
-                arc.SetWidth(self.ring_w)
-                if net_coil: arc.SetNet(net_coil)
-                arc.SetStart(via1_pt)
-                arc.SetMid(via_mid)
-                arc.SetEnd(via2_pt)
-                self.board.Add(arc)
+                # 3. Ring connection robustly as segmented path (no arc discontinuity).
+                add_ring_path(arc_layer, cri, th1, th2, via1_pt, via2_pt, self.ring_w)
 
         # 4. STERNSCHALTUNG (nur für 3-Phasen Motoren)
         neutral_tap = None
@@ -971,21 +997,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                 th1, pt1 = star_pts[i]
                 th2, pt2 = star_pts[i+1]
                 
-                d_th = th2 - th1
-                if d_th > math.pi: d_th -= 2*math.pi
-                elif d_th < -math.pi: d_th += 2*math.pi
-                
-                th_mid = th1 + d_th / 2.0
-                pt_mid = self.fpoint(int(star_radius * math.cos(th_mid)), int(star_radius * math.sin(th_mid)))
-
-                arc = pcbnew.PCB_ARC(self.board)
-                arc.SetLayer(pcbnew.F_Cu)
-                arc.SetWidth(self.ring_w)
-                if net_coil: arc.SetNet(net_coil)
-                arc.SetStart(pt1)
-                arc.SetMid(pt_mid)
-                arc.SetEnd(pt2)
-                self.board.Add(arc)
+                add_ring_path(pcbnew.F_Cu, star_radius, th1, th2, pt1, pt2, self.ring_w)
 
             # 3P+N: create a dedicated neutral hub so N is not tied to a phase star point.
             if self.n_term > phases and len(star_pts) >= 3:
