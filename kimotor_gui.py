@@ -14,7 +14,7 @@ import wx.xrc
 class KiMotorGUI ( wx.Frame ):
 
 	def __init__( self, parent ):
-		wx.Frame.__init__ ( self, parent, id = wx.ID_ANY, title = u"KiMotor", pos = wx.DefaultPosition, size = wx.Size( 1700,750 ), style = wx.DEFAULT_FRAME_STYLE|wx.STAY_ON_TOP|wx.TAB_TRAVERSAL, name = u"kimotor" )
+		wx.Frame.__init__ ( self, parent, id = wx.ID_ANY, title = u"KiMotor Pro - by ITCRW", pos = wx.DefaultPosition, size = wx.Size( 1700,750 ), style = wx.DEFAULT_FRAME_STYLE|wx.STAY_ON_TOP|wx.TAB_TRAVERSAL, name = u"kimotor" )
 
 		self.SetSizeHints( wx.DefaultSize, wx.DefaultSize )
 		self.SetBackgroundColour( wx.SystemSettings.GetColour( wx.SYS_COLOUR_3DLIGHT ) )
@@ -237,7 +237,7 @@ class KiMotorGUI ( wx.Frame ):
 		sbSizer2.Add( sbMechMount, 0, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 4 )
 		sbSizer2.Add( sbMechSupport, 0, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 4 )
 
-		bSizerMainRow.Add( sbSizer2, 15, wx.EXPAND|wx.ALL, 6 )
+		bSizerMainRow.Add( sbSizer2, 12, wx.EXPAND|wx.ALL, 6 )
 
 		sbSizer1 = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Electrical" ), wx.VERTICAL )
 		sbElecMotor = wx.StaticBoxSizer( wx.StaticBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Motor / Topology" ), wx.VERTICAL )
@@ -557,7 +557,7 @@ class KiMotorGUI ( wx.Frame ):
 		sbSizer1.Add( sbElecMotor, 0, wx.EXPAND|wx.ALL, 4 )
 		sbSizer1.Add( sbElecRouting, 0, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 4 )
 
-		bSizerMainRow.Add( sbSizer1, 15, wx.EXPAND|wx.ALL, 6 )
+		bSizerMainRow.Add( sbSizer1, 12, wx.EXPAND|wx.ALL, 6 )
 
 		sbSizer111 = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Physics / Stats" ), wx.VERTICAL )
 
@@ -669,7 +669,7 @@ class KiMotorGUI ( wx.Frame ):
 
 		sbSizer111.Add( bSizerRingR, 0, wx.EXPAND, 5 )
 
-		bSizerMainRow.Add( sbSizer111, 10, wx.EXPAND|wx.ALL, 6 )
+		bSizerMainRow.Add( sbSizer111, 9, wx.EXPAND|wx.ALL, 6 )
 
 		sbSizerStatus = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Status" ), wx.VERTICAL )
 
@@ -681,26 +681,36 @@ class KiMotorGUI ( wx.Frame ):
 		sbSizerStatus.Add( self.m_txtStatus, 1, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 5 )
 
 		bSizer3 = wx.BoxSizer( wx.HORIZONTAL )
+		bSizerBottomLeft = wx.BoxSizer( wx.VERTICAL )
+		bSizerLeftRow = wx.BoxSizer( wx.HORIZONTAL )
+		bSizerBottomRight = wx.BoxSizer( wx.VERTICAL )
 
 		self.btn_load = wx.Button( self, wx.ID_OK, u"Load", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"btn_ok" )
-		bSizer3.Add( self.btn_load, 0, wx.ALIGN_CENTER_VERTICAL, 5 )
+		bSizerLeftRow.Add( self.btn_load, 0, wx.ALIGN_CENTER_VERTICAL|wx.RIGHT, 8 )
 
 		self.btn_save = wx.Button( self, wx.ID_OK, u"Save", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"btn_ok" )
-		bSizer3.Add( self.btn_save, 0, wx.ALL, 5 )
+		bSizerLeftRow.Add( self.btn_save, 0, wx.ALIGN_CENTER_VERTICAL, 0 )
 
-		bSizer3.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+		bSizerBottomLeft.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+		bSizerBottomLeft.Add( bSizerLeftRow, 0, wx.ALIGN_CENTER|wx.ALL, 0 )
+		bSizerBottomLeft.Add( ( 0, 0), 1, wx.EXPAND, 5 )
 
 		self.btn_clear = wx.Button( self, wx.ID_ANY, u"Clear", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"btn_clear" )
 		self.btn_clear.Enable( False )
 		self.btn_clear.Hide()
-		bSizer3.Add( self.btn_clear, 0, wx.ALL, 5 )
-
-		bSizer3.Add( sbSizerStatus, 1, wx.EXPAND|wx.LEFT|wx.RIGHT, 6 )
-
-		bSizer3.Add( ( 0, 0), 1, wx.EXPAND, 5 )
 
 		self.btn_ok = wx.Button( self, wx.ID_OK, u"Generate", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"btn_ok" )
-		bSizer3.Add( self.btn_ok, 0, wx.ALIGN_CENTER_VERTICAL|wx.ALIGN_RIGHT, 5 )
+		self.btn_ok.SetForegroundColour( wx.Colour(255,255,255) )
+		self.btn_ok.SetBackgroundColour( wx.Colour(46,125,50) )
+		self.btn_ok.SetMinSize( wx.Size(130, 40) )
+
+		bSizerBottomRight.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+		bSizerBottomRight.Add( self.btn_ok, 0, wx.ALIGN_CENTER|wx.ALL, 0 )
+		bSizerBottomRight.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		bSizer3.Add( bSizerBottomLeft, 0, wx.EXPAND|wx.RIGHT, 8 )
+		bSizer3.Add( sbSizerStatus, 1, wx.EXPAND|wx.LEFT|wx.RIGHT, 6 )
+		bSizer3.Add( bSizerBottomRight, 0, wx.EXPAND|wx.LEFT, 8 )
 
 		bSizer5.Add( bSizer3, 0, wx.EXPAND|wx.TOP, 5 )
 
@@ -738,10 +748,10 @@ class KiMotorGUI ( wx.Frame ):
 			_reset_desc_font(_sb.GetStaticBox())
 
 		# Keep readable label area in the two input-heavy columns.
-		sbSizer2.GetStaticBox().SetMinSize(wx.Size(520, -1))
-		sbSizer1.GetStaticBox().SetMinSize(wx.Size(520, -1))
-		sbSizer111.GetStaticBox().SetMinSize(wx.Size(420, -1))
-		sbSizerStatus.GetStaticBox().SetMinSize(wx.Size(340, -1))
+		sbSizer2.GetStaticBox().SetMinSize(wx.Size(480, -1))
+		sbSizer1.GetStaticBox().SetMinSize(wx.Size(480, -1))
+		sbSizer111.GetStaticBox().SetMinSize(wx.Size(360, -1))
+		sbSizerStatus.GetStaticBox().SetMinSize(wx.Size(420, -1))
 
 		# Free horizontal space for labels: shrink wide value widgets recursively.
 		def _shrink_desc_inputs(win):
