@@ -423,14 +423,6 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         t0 = None
         nseg = n_loops * 4 - 1
 
-        skip_seg = -1
-        if is_first_layer and not is_ccw:
-            skip_seg = 0
-        if is_last_layer and is_ccw:
-            skip_seg = nseg - 1
-        if is_last_layer and not is_ccw:
-            skip_seg = nseg - 1
-
         actual_start = None
         actual_end = None
 
@@ -446,17 +438,17 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             ip += 1
             pe = self.fpoint(int(mpt[ip][0,0]), int(mpt[ip][0,1]))
 
-            if seg == skip_seg:
-                if skip_seg == 0:
-                    actual_start = pe
-                if skip_seg == nseg - 1:
-                    actual_end = ps
-                continue
+            d_s = math.hypot(ps.x, ps.y)
+            d_e = math.hypot(pe.x, pe.y)
+            # Remove only the inner bridge on terminal layers.
+            # This is geometric, so it won't drop an outer coil segment by index mismatch.
+            if (is_first_layer or is_last_layer):
+                if abs(d_s - self.r_coil_in) < self.SCALE * 0.5 and abs(d_e - self.r_coil_in) < self.SCALE * 0.5:
+                    continue
 
-            if actual_start is None and seg == 0:
+            if actual_start is None:
                 actual_start = ps
-            if actual_end is None and seg == nseg - 1:
-                actual_end = pe
+            actual_end = pe
 
             if is_arc:
                 t = pcbnew.PCB_ARC(self.board)
