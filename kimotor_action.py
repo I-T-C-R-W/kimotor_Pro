@@ -920,13 +920,19 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         # 5. FINALE TERMINAL-ANSCHLÜSSE (Zur Platine oder Kabel)
         term_radius = lowest_used_radius - self.term_offset
         n_phase_coils = int(self.n_slots / phases) if phases > 0 else 0
+        phase_ref_angle = 0.0
+        if phases > 1 and hasattr(self, "coil_slot_pins") and self.coil_slot_pins and self.coil_slot_pins[0]:
+            p0 = self.coil_slot_pins[0][0]
+            phase_ref_angle = math.atan2(p0.y, p0.x)
 
         def select_phase_terminal_slot(phase_idx):
             # Spread A/B/C around the circle by choosing, within each phase set,
             # the slot nearest to the ideal phase angle.
             if phases <= 1 or n_phase_coils <= 0:
                 return phase_idx
-            target = (2.0 * math.pi * phase_idx) / phases
+            # Use real geometry as angular reference to keep 3P stable across
+            # different slot/orientation offsets.
+            target = phase_ref_angle + (2.0 * math.pi * phase_idx) / phases
             best_slot = phase_idx
             best_err = None
             for k in range(n_phase_coils):
