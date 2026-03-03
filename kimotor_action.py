@@ -758,7 +758,9 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
         # Mode 4: zusätzlich 2 innere unverbundene Stützlöcher je Slot (nahe Ringanschlüssen).
         if support_via_mode == 4:
-            r_in_support = current_radius + (self.ring_w / 2.0) + self.trk_space + (support_hole_width / 2.0)
+            # Anchor inner support holes to coil geometry (not current ring radius),
+            # so increasing first-ring inset really increases ring-to-support clearance.
+            r_in_support = self.r_coil_in - (self.d_via / 2.0) - self.trk_space - (support_hole_width / 2.0)
             th_in_off = (th0 / 2.0) * 0.45
             for slot in range(self.n_slots):
                 th_c = slot * th0
@@ -962,6 +964,8 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
         terminal_starts = []
         terminal_angles = []
+        terminal_side_shift = []
+        cluster_base = None
         if phases == 1:
             c0 = self.coil_slot_pins[0][0] if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[0] else coils[0][0][0]
             last_slot_1p = self.n_slots - 1
@@ -997,6 +1001,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             # based on THT terminal diameter so footprints do not overlap.
             phase_starts = [get_slot_start(0, 0), get_slot_start(1, 1), get_slot_start(2, 2)]
             base = math.atan2(phase_starts[1].y, phase_starts[1].x)
+            cluster_base = base
             term_od = self.get_selected_terminal_od_iu()
             tangential_pitch = max(
                 term_od + int(0.6 * self.SCALE),
@@ -1032,6 +1037,13 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             for i, c in enumerate(phase_starts):
                 terminal_starts.append(c)
                 terminal_angles.append(cand_angles[best_perm[i]])
+                dth = self._angle_diff(cand_angles[best_perm[i]], base)
+                if abs(dth) < 1e-6:
+                    terminal_side_shift.append(0)
+                else:
+                    # Shift outer pads tangentially so traces hit pad side, not center.
+                    sign = 1 if dth > 0 else -1
+                    terminal_side_shift.append(sign * int(0.45 * term_od))
         else:
             # User preference: 3P terminals grouped in one local cluster (not 120deg separated).
             phase_starts = []
@@ -1085,11 +1097,16 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             for i, c in enumerate(phase_starts):
                 terminal_starts.append(c)
                 terminal_angles.append(cand_angles[best_perm[i]])
+                terminal_side_shift.append(0)
 
             if self.n_term > phases:
                 c_n = neutral_tap if neutral_tap is not None else coils[0][-1][1]
                 terminal_starts.append(c_n)
                 terminal_angles.append(base + (phase_offsets[-1] + spread))
+                terminal_side_shift.append(0)
+
+        if len(terminal_side_shift) < len(terminal_angles):
+            terminal_side_shift.extend([0] * (len(terminal_angles) - len(terminal_side_shift)))
 
         for p in range(self.n_term):
             if p < len(terminal_starts):
@@ -1119,8 +1136,18 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     m.Value().SetVisible(False)
                     lib_name = lib.split('.')[-2].split('/')[-1]
                     m.SetFPIDAsString(lib_name + ":" + fp)
-                    m.SetPosition(t_pt)
-                    m.Rotate(t_pt, self.eda_angle(-th))
+                    fp_pos = t_pt
+                    if p < len(terminal_side_shift):
+                        shift = terminal_side_shift[p]
+                        if shift != 0:
+                            tx = -math.sin(th)
+                            ty = math.cos(th)
+                            fp_pos = self.fpoint(
+                                int(t_pt.x + shift * tx),
+                                int(t_pt.y + shift * ty)
+                            )
+                    m.SetPosition(fp_pos)
+                    m.Rotate(fp_pos, self.eda_angle(-th))
                     for pad in m.Pads():
                         pad.SetNet(net_coil)
                     dth = 0.05
