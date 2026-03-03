@@ -1427,6 +1427,12 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         event.Skip()
 
     def on_btn_generate(self, event):
+        self.set_status("Started: generation running (can take 5-60 s)")
+        try:
+            self.Update()
+            wx.YieldIfNeeded()
+        except Exception:
+            pass
         self.generate()
         event.Skip()
 
