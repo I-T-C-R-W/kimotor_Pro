@@ -232,7 +232,7 @@ class KiMotorGUI ( wx.Frame ):
 
 		sbSizer2.Add( bSizer2111, 1, wx.EXPAND, 5 )
 
-		bSizerMainRow.Add( sbSizer2, 1, wx.EXPAND|wx.ALL, 6 )
+		bSizerMainRow.Add( sbSizer2, 13, wx.EXPAND|wx.ALL, 6 )
 
 		sbSizer1 = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Electrical" ), wx.VERTICAL )
 
@@ -542,7 +542,7 @@ class KiMotorGUI ( wx.Frame ):
 
 		sbSizer1.Add( bSizer271, 1, wx.EXPAND, 5 )
 
-		bSizerMainRow.Add( sbSizer1, 1, wx.EXPAND|wx.ALL, 6 )
+		bSizerMainRow.Add( sbSizer1, 13, wx.EXPAND|wx.ALL, 6 )
 
 		sbSizer111 = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Physics / Stats" ), wx.VERTICAL )
 
@@ -654,7 +654,7 @@ class KiMotorGUI ( wx.Frame ):
 
 		sbSizer111.Add( bSizerRingR, 1, wx.EXPAND, 5 )
 
-		bSizerMainRow.Add( sbSizer111, 1, wx.EXPAND|wx.ALL, 6 )
+		bSizerMainRow.Add( sbSizer111, 11, wx.EXPAND|wx.ALL, 6 )
 
 		bSizer3 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -685,7 +685,7 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_txtStatus = wx.TextCtrl( sbSizerStatus.GetStaticBox(), wx.ID_ANY, u"Ready.", wx.DefaultPosition, wx.Size( -1,60 ), wx.TE_MULTILINE|wx.TE_READONLY|wx.BORDER_SIMPLE, wx.DefaultValidator, u"m_txtStatus" )
 		sbSizerStatus.Add( self.m_txtStatus, 1, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 5 )
 
-		bSizerMainRow.Add( sbSizerStatus, 1, wx.EXPAND|wx.ALL, 6 )
+		bSizerMainRow.Add( sbSizerStatus, 8, wx.EXPAND|wx.ALL, 6 )
 
 		# Visual cleanup: emphasize section blocks with bold titles and clear borders.
 		def _style_staticbox(box):
