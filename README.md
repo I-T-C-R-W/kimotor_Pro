@@ -68,3 +68,14 @@ Für schnelle lokale Prüfung nach Änderungen:
 ```bash
 python3 -m py_compile kimotor_action.py kimotor_gui.py
 ```
+
+## Stable-Stand (Branch `work`)
+
+- `KiMotor Pro` liegt im Branch `work` jetzt als stabiler Arbeitsstand vor.
+- Die harten GUI-Probleme (Layout/Bedienbarkeit) wurden im aktuellen Stand behoben.
+
+## TODO (nächste Schritte)
+
+- `PCB preset` bleibt aktuell absichtlich im Code enthalten (kompatibilitätsrelevant),
+  ist in der GUI jedoch ohne aktive Funktion ausgeblendet.
+- Später optional: echte Preset-Profile für Hersteller/Stacks (z. B. `PCBWay` und `JLCPCB`, jeweils Basic/Extended).
