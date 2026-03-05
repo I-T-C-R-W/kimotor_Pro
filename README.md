@@ -1,12 +1,12 @@
-# KiMotor Fork - State Report
+# KiMotor Fork - State Report for my PRO Version
+<img width="1892" height="809" alt="test87" src="https://github.com/user-attachments/assets/69f7b5d3-c293-4eb2-ab20-4f6bca2c1897" />
+<img width="1928" height="1692" alt="test90" src="https://github.com/user-attachments/assets/4295ef36-de36-431a-a911-b2a1f343552b" />
 
-Dieses Repo ist ein Fork mit umfangreichen Anpassungen an Routing, GUI und Validierung.
 
-<img width="1552" height="1787" alt="test57" src="https://github.com/user-attachments/assets/868c92da-4f4e-4a39-ba0a-b7de5e4b57b5" />
-
+Dieses Repo ist ein Fork mit umfangreichen Anpassungen an Routing,Funktionen, GUI und Validierung.
 
 - Robustere Schema-/Phasenlogik:
-  - `1P`, `3P`, `3P+N` mit Fallback-Handling.
+  - `1P`, `3P`, (`3P+N`) mit Fallback-Handling.
   - saubere Zuordnung der Terminalanzahl (`n_term`).
 - Eingabevalidierung vor Generierung:
   - `n_slots > 0`
@@ -31,7 +31,7 @@ Dieses Repo ist ein Fork mit umfangreichen Anpassungen an Routing, GUI und Valid
 - 1P/3P Routing-Stand:
   - `3P` aktuell stabiler Zielstand.
   - `1P` stark verbessert (direktere Verbindung statt unnötiger Innenring-Topologie).
-
+- Fehler werden abgefangen und Müll wird gelöscht 
 ## Neu hinzugefügte / zentral genutzte Funktionen
 
 In `kimotor_action.py`:
@@ -52,6 +52,9 @@ In `kimotor_gui.py`:
 
 - Status-Panel mit Textausgabe.
 - Checkbox: `Fill inner area with GND`.
+- Via Diameter Settings
+- Ring Diameter Settings
+- Space Diameter Setings
 - Support-Via/Support-TH Einstellungen.
 - Erweiterte Stats-Anzeigen (Total, Coil, Ring).
 
@@ -59,22 +62,16 @@ In `kimotor_gui.py`:
 
 - `3P+N` Terminal-/Neutral-Topologie ist noch nicht final:
   - N-Positionierung und Endrouting benötigen noch eine dedizierte, vollständig deterministische Topologie-Tabelle.
-  - `1P` + `3P` haben aktuell höhere Priorität und gelten als deutlich stabiler.
+  - `1P` + `3P` sind aber stabil
 
-## Hinweis
 
-Für schnelle lokale Prüfung nach Änderungen:
-
-```bash
-python3 -m py_compile kimotor_action.py kimotor_gui.py
-```
-
-## Stable-Stand (Branch `work`)
+## Stable-Stand (Branch = `work`)
 
 - `KiMotor Pro` liegt im Branch `work` jetzt als stabiler Arbeitsstand vor.
 - Die harten GUI-Probleme (Layout/Bedienbarkeit) wurden im aktuellen Stand behoben.
 
 ## TODO (nächste Schritte)
+- in der Gui :   spaltenskalierung anpassen, startpreset anpassen - Ergebniss aus spalte 3 evt unter 1 und 2 verschieben oder direkt unter die Parametereinstellungen
 
 - `PCB preset` bleibt aktuell absichtlich im Code enthalten (kompatibilitätsrelevant),
   ist in der GUI jedoch ohne aktive Funktion ausgeblendet.
