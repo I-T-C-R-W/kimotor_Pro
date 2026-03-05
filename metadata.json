@@ -1,0 +1,45 @@
+{
+  "name": "KiMotor Pro",
+  "identifier": "com.github.I-T-C-R-W.kimotor_pro",
+  "type": "plugin",
+  "description": "Parametric PCB motor generator for KiCad (KiMotor Pro fork).",
+  "author": {
+    "name": "I-T-C-R-W",
+    "contact": "https://github.com/I-T-C-R-W/kimotor_Pro"
+  },
+  "maintainer": {
+    "name": "I-T-C-R-W",
+    "contact": "https://github.com/I-T-C-R-W/kimotor_Pro"
+  },
+  "license": "GPL-2.0-only",
+  "homepage": "https://github.com/I-T-C-R-W/kimotor_Pro",
+  "repository": "https://github.com/I-T-C-R-W/kimotor_Pro",
+  "resources": {
+    "icon": "kimotor_24x24.png",
+    "readme": "README.md"
+  },
+  "tags": [
+    "kicad",
+    "pcb",
+    "motor",
+    "generator",
+    "plugin"
+  ],
+  "compatibility": {
+    "kicad": {
+      "min": "9.0.0",
+      "max": "9.x"
+    },
+    "python": "3.x"
+  },
+  "release": {
+    "version": "0.1.0",
+    "channel": "work",
+    "status": "stable-baseline",
+    "notes": [
+      "First stable KiMotor Pro baseline on branch work.",
+      "GUI hard errors fixed in current local baseline.",
+      "PCB preset remains in code for compatibility but is hidden in GUI (TODO: vendor presets)."
+    ]
+  }
+}
