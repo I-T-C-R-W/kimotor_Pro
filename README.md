@@ -62,13 +62,16 @@ In `kimotor_gui.py`:
 
 - `3P+N` Terminal-/Neutral-Topologie ist noch nicht final:
   - N-Positionierung und Endrouting benötigen noch eine dedizierte, vollständig deterministische Topologie-Tabelle.
-  - `1P` + `3P` sind aber stabil
 
+  - `1P` + `3P` sind aber stabil und nahezu immer fehlerfrei,
+  Bekannte Fehler :
+   - bei engen Settings leider manchmal das TH Terminal etwas überlappend 
+   - der VIA Pin in der Coil ist bei hohen Settings selten mal etwas daneben - daher immer prüfen ! 
 
 ## Stable-Stand (Branch = `work`)
 
-- `KiMotor Pro` liegt im Branch `work` jetzt als stabiler Arbeitsstand vor.
-- Die harten GUI-Probleme (Layout/Bedienbarkeit) wurden im aktuellen Stand behoben.
+- `KiMotor Pro` liegt im Branch `work` jetzt als relativ stabiler Arbeitsstand vor.
+- Die harten GUI-Probleme (Layout/Bedienbarkeit) wurden im aktuellen Stand weitgehend behoben.
 
 ## TODO (nächste Schritte)
 - in der Gui :   spaltenskalierung anpassen, startpreset anpassen - Ergebniss aus spalte 3 evt unter 1 und 2 verschieben oder direkt unter die Parametereinstellungen
