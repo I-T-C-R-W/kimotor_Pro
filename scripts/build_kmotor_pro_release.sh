@@ -24,8 +24,8 @@ ARCHIVE="$DIST_DIR/KMotor_Pro-v${VERSION}.zip"
 rm -f "$ARCHIVE"
 
 (
-  cd "$ROOT_DIR/release"
-  zip -r "$ARCHIVE" "com_github_itcrw_kmotor_pro"
+  cd "$PLUGIN_DIR"
+  zip -r "$ARCHIVE" .
 )
 
 echo "created: $ARCHIVE"
