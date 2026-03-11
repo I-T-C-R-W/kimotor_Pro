@@ -42,6 +42,13 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
     group = None
     SCALE = 0
     KICAD_VERSION = 0
+    GENERATED_ZONE_PRIORITIES = {
+        "outer_cu": 111,
+        "inner_cu": 112,
+        "outer_mask": 113,
+        "inner_mask": 114,
+    }
+    GENERATED_ZONE_NAME_PREFIX = "kimotor:"
 
     tl = 0
     tr = 0
@@ -92,6 +99,8 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         kimotor_gui.KiMotorGUI.__init__(self, parent)
 
         self.board = board
+        self.generated_zone_tokens = set()
+        self.center_via_warning_count = 0
         self.KICAD_VERSION = int(pcbnew.Version().split(".")[0])
         if self.KICAD_VERSION < 7:
             self.SCALE = pcbnew.IU_PER_MM
@@ -126,6 +135,486 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         self.pm = PM.PersistenceManager.Get()
         self.pm.SetPersistenceFile(configFile)
         self.pm.RegisterAndRestoreAll(self)
+
+    def _point_xy(self, pt):
+        if hasattr(pt, "x") and hasattr(pt, "y"):
+            return float(pt.x), float(pt.y)
+        try:
+            return float(pt[0,0]), float(pt[0,1])
+        except Exception:
+            flat = np.asarray(pt).reshape(-1)
+            return float(flat[0]), float(flat[1])
+
+    def _as_point(self, x, y):
+        return self.fpoint(int(round(x)), int(round(y)))
+
+    def _item_token(self, item):
+        for getter in ("GetUuid", "GetKIID"):
+            if hasattr(item, getter):
+                try:
+                    kiid = getattr(item, getter)()
+                    if hasattr(kiid, "AsString"):
+                        return kiid.AsString()
+                    return str(kiid)
+                except Exception:
+                    pass
+        if hasattr(item, "m_Uuid"):
+            try:
+                return item.m_Uuid.AsString()
+            except Exception:
+                pass
+        return str(id(item))
+
+    def _tag_generated_zone(self, zone, kind):
+        priority = self.GENERATED_ZONE_PRIORITIES[kind]
+        try:
+            zone.SetAssignedPriority(priority)
+        except Exception:
+            pass
+        zone_name = self.GENERATED_ZONE_NAME_PREFIX + kind
+        for setter in ("SetZoneName", "SetName"):
+            if hasattr(zone, setter):
+                try:
+                    getattr(zone, setter)(zone_name)
+                    break
+                except Exception:
+                    pass
+        self.generated_zone_tokens.add(self._item_token(zone))
+
+    def _is_generated_zone(self, zone):
+        token = self._item_token(zone)
+        if token in self.generated_zone_tokens:
+            return True
+        for getter in ("GetZoneName", "GetName"):
+            if hasattr(zone, getter):
+                try:
+                    name = getattr(zone, getter)()
+                    if name and str(name).startswith(self.GENERATED_ZONE_NAME_PREFIX):
+                        return True
+                except Exception:
+                    pass
+        if hasattr(zone, "GetAssignedPriority"):
+            try:
+                return zone.GetAssignedPriority() in self.GENERATED_ZONE_PRIORITIES.values()
+            except Exception:
+                pass
+        return False
+
+    def _cleanup_generated_zones(self):
+        zones_to_remove = []
+        for zone in self.board.Zones():
+            if self._is_generated_zone(zone):
+                zones_to_remove.append(zone)
+        for zone in zones_to_remove:
+            self.board.Remove(zone)
+
+    def _radial_vector(self, angle, radius=1.0):
+        return np.array([radius * math.cos(angle), radius * math.sin(angle)])
+
+    def _tangent_vector(self, angle, scale=1.0):
+        return np.array([-scale * math.sin(angle), scale * math.cos(angle)])
+
+    def _point_radius(self, pt):
+        x, y = self._point_xy(pt)
+        return math.hypot(x, y)
+
+    def _nearest_point_distance(self, radius, angle, pts):
+        target = np.array([radius * math.cos(angle), radius * math.sin(angle)])
+        best = None
+        for pt in pts:
+            x, y = self._point_xy(pt)
+            dist = math.hypot(x - target[0], y - target[1])
+            if best is None or dist < best:
+                best = dist
+        return best
+
+    def _get_outline_outer_radius(self):
+        if self.n_edges == 0:
+            return float(self.r_out)
+        return float(self.r_out) / max(math.cos(math.pi / self.n_edges), 1e-6)
+
+    def _get_outline_corners(self):
+        if self.n_edges < 4:
+            return None
+        points = self._outline_poly_points(self.r_out, self.n_edges)
+        if not points:
+            return None
+        return [self._point_xy(pt) for pt in points]
+
+    def _get_outline_bounds(self):
+        corners = self._get_outline_corners()
+        if not corners or len(corners) < 4:
+            return None
+        xs = [p[0] for p in corners]
+        ys = [p[1] for p in corners]
+        return (min(xs), max(xs), min(ys), max(ys))
+
+    def _clip_segment_to_outline_box(self, start_xy, end_xy, margin=0.0):
+        bounds = self._get_outline_bounds()
+        if not bounds or self.n_edges != 4:
+            return start_xy, end_xy
+
+        xmin, xmax, ymin, ymax = bounds
+        xmin += margin
+        xmax -= margin
+        ymin += margin
+        ymax -= margin
+
+        x0, y0 = start_xy
+        x1, y1 = end_xy
+        dx = x1 - x0
+        dy = y1 - y0
+        p = (-dx, dx, -dy, dy)
+        q = (x0 - xmin, xmax - x0, y0 - ymin, ymax - y0)
+        u1 = 0.0
+        u2 = 1.0
+
+        for pi, qi in zip(p, q):
+            if abs(pi) < 1e-12:
+                if qi < 0:
+                    return None
+                continue
+            t = qi / pi
+            if pi < 0:
+                if t > u2:
+                    return None
+                u1 = max(u1, t)
+            else:
+                if t < u1:
+                    return None
+                u2 = min(u2, t)
+
+        return (
+            (x0 + u1 * dx, y0 + u1 * dy),
+            (x0 + u2 * dx, y0 + u2 * dy),
+        )
+
+    def _rotate_xy(self, xy, angle):
+        x, y = xy
+        ca = math.cos(angle)
+        sa = math.sin(angle)
+        return (x * ca - y * sa, x * sa + y * ca)
+
+    def _get_pcb_text_position(self, text_size):
+        margin = max(2.0 * text_size, 1.2 * self.SCALE)
+        outer = self._get_outline_outer_radius()
+        inner_limit = max(float(self.r_coil_out) + self.trk_w + margin, 0.0)
+        radius = max(inner_limit, outer - margin)
+        radius = min(radius, outer - text_size)
+        if radius <= inner_limit:
+            radius = inner_limit
+
+        angles = (-math.pi / 4.0, math.pi / 4.0)
+        mounting_radii = [self.r_mh_out, self.r_mh_in]
+        for angle in angles:
+            x = radius * math.cos(angle)
+            y = radius * math.sin(angle)
+            blocked = False
+            for mount_r in mounting_radii:
+                if mount_r <= 0:
+                    continue
+                if abs(math.hypot(x, y) - mount_r) <= max(self.w_mnt, margin):
+                    blocked = True
+                    break
+            if not blocked:
+                return self._as_point(x, y)
+        return self._as_point(radius * math.cos(angles[0]), radius * math.sin(angles[0]))
+
+    def _get_bottom_right_info_anchor(self):
+        corners = self._get_outline_corners()
+        if corners and len(corners) >= 4:
+            xs = [p[0] for p in corners]
+            ys = [p[1] for p in corners]
+            outline_r = max(self._get_outline_outer_radius(), self.r_coil_out)
+            text_x = max(xs) - max(18.0 * self.SCALE, 0.27 * outline_r)
+            text_y = min(ys) + max(7.5 * self.SCALE, 0.10 * outline_r)
+            return (text_x, text_y)
+        outer = self._get_outline_outer_radius()
+        return (0.32 * outer, -0.72 * outer)
+
+    def _get_terminal_label_position(self, pad_pos, angle):
+        pad_r = 0.5 * self.get_selected_terminal_od_iu()
+        radial_offset = pad_r + max(self.trk_space, int(1.2 * self.SCALE))
+        tangential_offset = max(int(0.8 * pad_r), int(0.8 * self.SCALE))
+        radial = self._radial_vector(angle, radial_offset)
+        tangent_sign = 1.0 if math.cos(angle) >= 0 else -1.0
+        tangent = self._tangent_vector(angle, tangent_sign * tangential_offset)
+        px, py = self._point_xy(pad_pos)
+        return self._as_point(px + radial[0] + tangent[0], py + radial[1] + tangent[1])
+
+    def _add_silk_segment(self, start_xy, end_xy, width=None, clip_to_outline=False, clip_margin=0.0):
+        if clip_to_outline:
+            clipped = self._clip_segment_to_outline_box(start_xy, end_xy, clip_margin)
+            if clipped is None:
+                return None
+            start_xy, end_xy = clipped
+        seg = pcbnew.PCB_SHAPE(self.board, pcbnew.SHAPE_T_SEGMENT)
+        seg.SetStart(self._as_point(start_xy[0], start_xy[1]))
+        seg.SetEnd(self._as_point(end_xy[0], end_xy[1]))
+        seg.SetLayer(pcbnew.F_SilkS)
+        seg.SetWidth(int(width if width is not None else max(1, 0.127 * self.SCALE)))
+        self.board.Add(seg)
+        return seg
+
+    def _add_silk_circle(self, radius, width=None):
+        return self._add_silk_circle_at((0.0, 0.0), radius, width)
+
+    def _add_silk_circle_at(self, center_xy, radius, width=None):
+        circle = pcbnew.PCB_SHAPE(self.board)
+        circle.SetShape(pcbnew.SHAPE_T_CIRCLE)
+        circle.SetFilled(False)
+        cx, cy = center_xy
+        circle.SetStart(self._as_point(cx, cy))
+        circle.SetEnd(self._as_point(cx + radius, cy))
+        circle.SetCenter(self._as_point(cx, cy))
+        circle.SetLayer(pcbnew.F_SilkS)
+        circle.SetWidth(int(width if width is not None else max(1, 0.127 * self.SCALE)))
+        self.board.Add(circle)
+        return circle
+
+    def _add_edge_cuts_circle_at(self, center_xy, radius, width=None):
+        circle = pcbnew.PCB_SHAPE(self.board)
+        circle.SetShape(pcbnew.SHAPE_T_CIRCLE)
+        circle.SetFilled(False)
+        cx, cy = center_xy
+        circle.SetStart(self._as_point(cx, cy))
+        circle.SetEnd(self._as_point(cx + radius, cy))
+        circle.SetCenter(self._as_point(cx, cy))
+        circle.SetLayer(pcbnew.Edge_Cuts)
+        circle.SetWidth(int(width if width is not None else max(1, 0.09 * self.SCALE)))
+        self.board.Add(circle)
+        return circle
+
+    def _clear_generated_corner_holes(self):
+        for fp in list(self.board.GetFootprints()):
+            ref = fp.GetReferenceAsString() if hasattr(fp, "GetReferenceAsString") else ""
+            if ref.startswith("KMH_"):
+                self.board.RemoveNative(fp)
+
+    def _add_npth_hole_at(self, center_xy, radius, index):
+        fp = pcbnew.FOOTPRINT(self.board)
+        fp.SetReference(f"KMH_{index}")
+        fp.SetValue("")
+        fp.SetPosition(self._as_point(0, 0))
+        if hasattr(fp, "Reference"):
+            try:
+                fp.Reference().SetVisible(False)
+            except Exception:
+                pass
+        if hasattr(fp, "Value"):
+            try:
+                fp.Value().SetVisible(False)
+            except Exception:
+                pass
+
+        pad = pcbnew.PAD(fp)
+        dia = int(max(2.0 * radius, 1))
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_NPTH)
+        pad.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+        pad.SetDrillSize(self.fsize(dia, dia))
+        pad.SetSize(self.fsize(dia, dia))
+        pad.SetPosition(self._as_point(center_xy[0], center_xy[1]))
+        try:
+            pad.SetLayerSet(pcbnew.LSET.AllCuMask())
+        except Exception:
+            pass
+        fp.Add(pad)
+        self.board.Add(fp)
+        return fp
+
+    def _add_silk_arc_ticks(self, radius, angle_start, angle_end, step_deg=1.0, tick_inner=0.8, tick_outer=0.0, major_step=5):
+        angle = angle_start
+        while angle <= angle_end + 1e-9:
+            deg = int(round(math.degrees(angle)))
+            tick_len = tick_inner * self.SCALE
+            if deg % 10 == 0:
+                tick_len *= 3.2
+            elif major_step and deg % major_step == 0:
+                tick_len *= 2.0
+            r0 = radius - tick_len
+            r1 = radius + (tick_outer * self.SCALE)
+            a = angle
+            p0 = (r0 * math.cos(a), r0 * math.sin(a))
+            p1 = (r1 * math.cos(a), r1 * math.sin(a))
+            self._add_silk_segment(p0, p1)
+            angle += math.radians(step_deg)
+
+    def _add_local_tick_fan(self, center_xy, base_angle, fan_deg=18.0, radius_mm=3.0):
+        cx, cy = center_xy
+        radius = radius_mm * self.SCALE
+        start = math.radians(-fan_deg)
+        end = math.radians(fan_deg)
+        angle = start
+        while angle <= end + 1e-9:
+            deg = int(round(abs(math.degrees(angle))))
+            if deg % 10 == 0:
+                tick = 1.2 * self.SCALE
+            elif deg % 5 == 0:
+                tick = 0.8 * self.SCALE
+            else:
+                tick = 0.45 * self.SCALE
+            local_angle = base_angle + angle
+            p0 = (cx + (radius - tick) * math.cos(local_angle), cy + (radius - tick) * math.sin(local_angle))
+            p1 = (cx + radius * math.cos(local_angle), cy + radius * math.sin(local_angle))
+            self._add_silk_segment(p0, p1)
+            angle += math.radians(1.0)
+
+    def _add_linear_hole_scale(self, center_xy, radial_angle, hole_radius):
+        cx, cy = center_xy
+        radial = np.array([math.cos(radial_angle), math.sin(radial_angle)])
+        axis_dir = np.array([math.cos(radial_angle), math.sin(radial_angle)])
+        perp_dir = np.array([-math.sin(radial_angle), math.cos(radial_angle)])
+        inward = -radial
+        step_deg = max(0.1, float(getattr(self, "corner_scale_step_deg", 1.0)))
+        base_hole_count = max(1, int(getattr(self, "corner_hole_count", 4)))
+        angle_span = float(getattr(self, "corner_scale_span_deg", 5.0))
+        auto_hole_count = max(3, int(round((2.0 * angle_span) / step_deg)) + 1)
+        hole_count = max(base_hole_count, auto_hole_count)
+
+        arc_radius = math.hypot(cx, cy)
+        hole_arc_center = np.array([0.0, 0.0])
+        hole_angles = np.linspace(
+            radial_angle - math.radians(angle_span),
+            radial_angle + math.radians(angle_span),
+            hole_count,
+        )
+        hole_positions = []
+        for hole_idx, angle in enumerate(hole_angles):
+            hc = hole_arc_center + np.array([arc_radius * math.cos(angle), arc_radius * math.sin(angle)])
+            hole_positions.append(hc)
+            self._add_npth_hole_at((hc[0], hc[1]), hole_radius, hole_idx)
+
+        # Base construction:
+        # - 0deg hole center is the offset point
+        # - helper line is parallel to the corner diagonal and shifted inward by r_hole
+        # - holes stay on the outer side of the helper line
+        # - coarse/fine marks stand perpendicular on the inner side of that helper line
+        base_hole_center = np.array([cx, cy])
+        helper_center = base_hole_center + inward * (hole_radius + 0.25 * self.SCALE)
+        helper_half_len = max(1.2 * self.SCALE, 0.8 * hole_radius)
+        p0 = helper_center - axis_dir * helper_half_len
+        p1 = helper_center + axis_dir * helper_half_len
+        self._add_silk_segment(
+            tuple(p0),
+            tuple(p1),
+            width=max(1, 0.10 * self.SCALE),
+            clip_to_outline=True,
+            clip_margin=0.35 * self.SCALE,
+        )
+
+        def add_rotated_line_block(step_deg_local, span_deg_local, tick_len, width):
+            count = max(1, int(round(span_deg_local / step_deg_local)))
+            base_anchor = helper_center
+            base_q0 = tuple(base_anchor)
+            base_q1 = tuple(base_anchor + inward * tick_len)
+            for idx in range(-count, count + 1):
+                delta = math.radians(idx * step_deg_local)
+                q0 = self._rotate_xy(base_q0, delta)
+                q1 = self._rotate_xy(base_q1, delta)
+                self._add_silk_segment(
+                    q0,
+                    q1,
+                    width=width,
+                    clip_to_outline=True,
+                    clip_margin=0.35 * self.SCALE,
+                )
+
+        # Coarse degree marks: 1 degree, longer lines, opposite side of the helper line.
+        add_rotated_line_block(
+            1.0,
+            angle_span,
+            tick_len=max(7.0 * self.SCALE, 4.0 * hole_radius),
+            width=max(1, 0.08 * self.SCALE),
+        )
+
+        # Fine degree marks: current step, short lines close to the helper line.
+        add_rotated_line_block(
+            step_deg,
+            angle_span,
+            tick_len=max(2.2 * self.SCALE, 1.2 * hole_radius),
+            width=max(1, 0.10 * self.SCALE),
+        )
+
+    def _iter_outer_mount_points(self):
+        if self.n_edges == 4 and self.corner_hole_offset > 0:
+            corners = self._get_outline_corners()
+            if corners and len(corners) >= 4:
+                xs = [p[0] for p in corners]
+                ys = [p[1] for p in corners]
+                max_x = max(xs)
+                max_y = max(ys)
+                off = float(self.corner_hole_offset)
+                dia = max(float(self.corner_hole_dia), 0.0)
+                d = off / math.sqrt(2.0)
+                points = [
+                    ( max_x - d,  max_y - d, math.radians(45.0), dia),
+                    (-max_x + d,  max_y - d, math.radians(135.0), dia),
+                    (-max_x + d, -max_y + d, math.radians(225.0), dia),
+                    ( max_x - d, -max_y + d, math.radians(315.0), dia),
+                ]
+                return points[:max(0, min(len(points), int(self.corner_hole_count)))]
+        if self.n_mh_out <= 0 or self.r_mh_out <= 0:
+            return []
+        radius = float(self.r_mh_out)
+        if self.n_edges > 0:
+            radius /= max(math.cos(math.pi / self.n_edges), 1e-6)
+        th0 = 2 * math.pi / self.n_mh_out
+        points = []
+        for idx in range(self.n_mh_out):
+            angle = th0 * idx + th0 / 2.0
+            points.append((radius * math.cos(angle), radius * math.sin(angle), angle, max(float(self.corner_hole_dia), 3.2 * self.SCALE)))
+        return points
+
+    def _add_silk_cross_guides(self, radius):
+        corners = self._get_outline_corners()
+        if corners and len(corners) >= 4:
+            xs = [p[0] for p in corners]
+            ys = [p[1] for p in corners]
+            self._add_silk_segment((min(xs), 0.0), (max(xs), 0.0))
+            self._add_silk_segment((0.0, min(ys)), (0.0, max(ys)))
+            self._add_silk_segment(corners[0], corners[2])
+            self._add_silk_segment(corners[1], corners[3])
+            return
+        guide_r = radius
+        self._add_silk_segment((-guide_r, 0.0), (guide_r, 0.0))
+        self._add_silk_segment((0.0, -guide_r), (0.0, guide_r))
+        diag = guide_r / math.sqrt(2.0)
+        self._add_silk_segment((-diag, -diag), (diag, diag))
+        self._add_silk_segment((-diag, diag), (diag, -diag))
+
+    def _add_silk_slot_frames(self, ri, ro):
+        inner_r = ri
+        outer_r = ro
+        half_slot = math.pi / max(self.n_slots, 1)
+        for idx in range(self.n_slots):
+            a0 = idx * (2 * math.pi / self.n_slots) - half_slot
+            a1 = idx * (2 * math.pi / self.n_slots) + half_slot
+            p00 = (inner_r * math.cos(a0), inner_r * math.sin(a0))
+            p01 = (outer_r * math.cos(a0), outer_r * math.sin(a0))
+            p10 = (inner_r * math.cos(a1), inner_r * math.sin(a1))
+            p11 = (outer_r * math.cos(a1), outer_r * math.sin(a1))
+            self._add_silk_segment(p00, p01)
+            self._add_silk_segment(p10, p11)
+
+    def _add_silk_hole_scales(self):
+        self._clear_generated_corner_holes()
+        for x, y, angle, dia in self._iter_outer_mount_points():
+            self._add_linear_hole_scale((x, y), angle, max(dia * 0.5, 0.5 * self.SCALE))
+
+    def _add_silk_text(self, text, pos_xy, size_scale=1.0, align="right"):
+        txt = pcbnew.PCB_TEXT(self.board)
+        txt.SetText(text)
+        size = int(max(self.txt_size * size_scale, 0.4 * self.SCALE))
+        txt.SetTextSize(self.fsize(size, size))
+        txt.SetPosition(self._as_point(pos_xy[0], pos_xy[1]))
+        if hasattr(txt, "SetHorizJustify"):
+            if align == "left":
+                txt.SetHorizJustify(pcbnew.GR_TEXT_H_ALIGN_LEFT)
+            else:
+                txt.SetHorizJustify(pcbnew.GR_TEXT_H_ALIGN_RIGHT)
+        txt.SetLayer(pcbnew.F_SilkS)
+        self.board.Add(txt)
+        return txt
 
     def get_parameters(self):
         self.outline = self.m_cbOutline.GetStringSelection()
@@ -196,6 +685,15 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             self.fill_outer_gnd = bool(self.m_chkFillOuterGnd.IsChecked() if hasattr(self.m_chkFillOuterGnd, "IsChecked") else self.m_chkFillOuterGnd.GetValue())
         else:
             self.fill_outer_gnd = True
+        self.silk_cross_guides = bool(self.m_cbSilkCross.GetValue()) if hasattr(self, "m_cbSilkCross") else False
+        self.silk_deg_scale = bool(self.m_cbSilkDeg.GetValue()) if hasattr(self, "m_cbSilkDeg") else False
+        self.silk_slot_frames = bool(self.m_cbSilkSlots.GetValue()) if hasattr(self, "m_cbSilkSlots") else False
+        self.silk_hole_scales = bool(self.m_cbSilkHoleScale.GetValue()) if hasattr(self, "m_cbSilkHoleScale") else False
+        self.corner_hole_offset = float(self.m_ctrlCornerHoleOffset.GetValue()) * self.SCALE if hasattr(self, "m_ctrlCornerHoleOffset") else 0.0
+        self.corner_hole_dia = float(self.m_ctrlCornerHoleDia.GetValue()) * self.SCALE if hasattr(self, "m_ctrlCornerHoleDia") else 0.0
+        self.corner_hole_count = int(self.m_ctrlCornerHoleCount.GetValue()) if hasattr(self, "m_ctrlCornerHoleCount") else 4
+        self.corner_scale_step_deg = float(self.m_ctrlCornerScaleStep.GetValue()) if hasattr(self, "m_ctrlCornerScaleStep") else 1.0
+        self.corner_scale_span_deg = float(self.m_ctrlCornerScaleSpan.GetValue()) if hasattr(self, "m_ctrlCornerScaleSpan") else 5.0
         if hasattr(self, "m_ctrlInnerGndDia"):
             self.inner_fill_dia = int(max(0.0, float(self.m_ctrlInnerGndDia.GetValue())) * self.SCALE)
         else:
@@ -250,19 +748,36 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         try:
             with open(settings+'/kicad_common.json', 'r') as f:
                 data = json.load(f)
-                if not (data["environment"]["vars"] is None) and "KICAD6_FOOTPRINT_DIR" in data["environment"]["vars"]:
-                    self.fp_path = data["environment"]["vars"]["KICAD6_FOOTPRINT_DIR"]
+                env_vars = data.get("environment", {}).get("vars") or {}
+                fp_keys = [
+                    f"KICAD{self.KICAD_VERSION}_FOOTPRINT_DIR",
+                    "KICAD_FOOTPRINT_DIR",
+                    "KICAD6_FOOTPRINT_DIR",
+                ]
+                for key in fp_keys:
+                    if env_vars.get(key):
+                        self.fp_path = env_vars[key]
+                        break
         except IOError:
             wx.LogError("Settings file not found.")
             return
 
         if self.fp_path is None:
-            self.fp_path = os.getenv("KICAD"+str(self.KICAD_VERSION)+"_FOOTPRINT_DIR", default=None)
+            for key in (
+                f"KICAD{self.KICAD_VERSION}_FOOTPRINT_DIR",
+                "KICAD_FOOTPRINT_DIR",
+                "KICAD6_FOOTPRINT_DIR",
+            ):
+                self.fp_path = os.getenv(key, default=None)
+                if self.fp_path:
+                    break
 
         if self.fp_path is not None:
             self.fp_path = os.path.normpath(self.fp_path) + os.sep
         else:
-            wx.LogError("Footprint library not found.")
+            wx.LogError(
+                f"Footprint library not found. Expected KICAD{self.KICAD_VERSION}_FOOTPRINT_DIR or KICAD_FOOTPRINT_DIR."
+            )
 
     def init_nets(self):
         gnd = self.board.FindNet("gnd")
@@ -310,6 +825,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
     def generate(self):
         self.set_status("Running")
         try:
+            self.center_via_warning_count = 0
             self.get_parameters()
             validation_errors = self.validate_parameters()
             if validation_errors:
@@ -389,8 +905,6 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     fill_inner_area_gnd=self.fill_inner_gnd,
                     fill_outer_area_gnd=self.fill_outer_gnd)
             
-            self.do_silkscreen(self.r_coil_out + self.trk_w, self.r_coil_in, self.th0)
-
             if hasattr(self.board, 'BuildConnectivity'):
                 self.board.BuildConnectivity()
                 
@@ -402,6 +916,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
             temp = self.m_ambT.GetValue()
             stats = self.calculate_stats_breakdown(self.board, net_name="coil", temp=temp)
+            self.last_stats = stats
             self.tl = stats["phase_len_mm"]
             self.tr = stats["phase_r_temp"]
 
@@ -411,12 +926,24 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             self.lbl_coilR.SetLabel('%.3f' % stats["coil_resistance_per_coil"])
             self.lbl_ringR.SetLabel('%.3f' % stats["ring_resistance_total"])
 
+            self.do_silkscreen(self.r_coil_out + self.trk_w, self.r_coil_in, self.th0)
+            if hasattr(self.board, 'BuildConnectivity'):
+                self.board.BuildConnectivity()
+            pcbnew.Refresh()
+            try:
+                pcbnew.UpdateUserInterface()
+            except AttributeError:
+                pass
+
             self.btn_clear.Enable(True)
             skipped = int(getattr(self, "support_hole_collision_count", 0))
+            via_skipped = int(getattr(self, "center_via_warning_count", 0))
+            warnings = []
             if skipped > 0:
-                self.set_status(f"Finished (support holes skipped: {skipped})")
-            else:
-                self.set_status("Finished")
+                warnings.append(f"support holes skipped: {skipped}")
+            if via_skipped > 0:
+                warnings.append(f"center vias skipped: {via_skipped}")
+            self.set_status("Finished" if not warnings else f"Finished ({', '.join(warnings)})")
             if hasattr(self, "m_txtStatus") and self.m_txtStatus:
                 self.m_txtStatus.SetValue(
                     "Finished\n"
@@ -428,6 +955,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     f"R / phase: {stats['phase_r_temp']:.4f} ohm\n"
                     f"R / coil: {stats['coil_resistance_per_coil']:.4f} ohm\n"
                     f"R rings total: {stats['ring_resistance_total']:.4f} ohm"
+                    + (f"\nWarnings: {', '.join(warnings)}" if warnings else "")
                 )
         except Exception as e:
             self.set_status("Failed")
@@ -443,6 +971,10 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         Zeichnet die Spule und liefert die zwei expliziten Ecke-Anker.
         Auf den Terminal-Layern wird der innere Stummel gezielt entfernt.
         """
+        def mpt_point(idx):
+            x, y = self._point_xy(mpt[idx])
+            return self.fpoint(int(x), int(y))
+
         ip = 0
         t0 = None
         nseg = n_loops * 4 - 1
@@ -452,16 +984,16 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         skipped_inner_bridge = False
 
         for seg in range(nseg):
-            ps = self.fpoint(int(mpt[ip][0,0]), int(mpt[ip][0,1]))
+            ps = mpt_point(ip)
 
             is_arc = (not seg % 2)
             if is_arc:
                 ip += 1
-                mid_pt = self.fpoint(int(mpt[ip][0,0]), int(mpt[ip][0,1]))
+                mid_pt = mpt_point(ip)
                 side = -1 if not seg % 4 else 1
 
             ip += 1
-            pe = self.fpoint(int(mpt[ip][0,0]), int(mpt[ip][0,1]))
+            pe = mpt_point(ip)
 
             d_s = math.hypot(ps.x, ps.y)
             d_e = math.hypot(pe.x, pe.y)
@@ -503,7 +1035,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             t0 = t
 
         if actual_start is None:
-            actual_start = self.fpoint(int(mpt[0][0,0]), int(mpt[0][0,1]))
+            actual_start = mpt_point(0)
         if actual_end is None:
             actual_end = actual_start
 
@@ -517,6 +1049,8 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         else:
             pcu0 = ksolve.radial( ri, ro, self.dr, th0, n_loops, 0 )
             pcu1 = ksolve.radial( ri, ro, self.dr, th0, n_loops, 1 )
+        pcu0 = np.asarray(pcu0, dtype=float)
+        pcu1 = np.asarray(pcu1, dtype=float)
         
         coil_p =[]
         for i in range(self.phases):
@@ -532,8 +1066,8 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
             th = th0 * p 
             R = np.array([[math.cos(th), -math.sin(th)],[math.sin(th), math.cos(th)]])
-            Tcw = np.matmul(R, pcu0.transpose()).transpose()
-            Tccw = np.matmul(R, pcu1.transpose()).transpose()
+            Tcw = np.matmul(pcu0, R.transpose())
+            Tccw = np.matmul(pcu1, R.transpose())
             slot_anchors = self.build_slot_anchors(Tcw, Tccw, th)
             slot_center_via = self.build_slot_center_via(Tcw, Tccw, th, th0)
 
@@ -544,18 +1078,21 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
                 if is_ccw:
                     ct = self.coil_tracker(Tccw, layer, n_loops, pgroup, is_first, is_last, is_ccw)
-                    via = pcbnew.PCB_VIA(self.board)
-                    if len(lset)==2:
-                        via.SetViaType(pcbnew.VIATYPE_THROUGH)
+                    via_pos = slot_center_via if len(lset) == 2 else ct[1]
+                    if via_pos is not None:
+                        via = pcbnew.PCB_VIA(self.board)
+                        if len(lset)==2:
+                            via.SetViaType(pcbnew.VIATYPE_THROUGH)
+                        else:
+                            via.SetViaType(pcbnew.VIATYPE_BLIND_BURIED)
+                        via.SetLayerPair( lset[idx-1], lset[idx] )
+                        via.SetPosition(via_pos)
+                        via.SetDrill( self.d_drill )
+                        via.SetWidth( self.d_via )
+                        if net_coil: via.SetNet(net_coil)
+                        self.board.Add(via)
                     else:
-                        via.SetViaType(pcbnew.VIATYPE_BLIND_BURIED)
-                    via.SetLayerPair( lset[idx-1], lset[idx] )
-                    # Keep transition via centered in the slot slit for 2-layer builds.
-                    via.SetPosition(slot_center_via if len(lset) == 2 else ct[1])
-                    via.SetDrill( self.d_drill )
-                    via.SetWidth( self.d_via )
-                    if net_coil: via.SetNet(net_coil)
-                    self.board.Add(via)
+                        self.center_via_warning_count += 1
                 else:
                     ct = self.coil_tracker(Tcw, layer, n_loops, pgroup, is_first, is_last, is_ccw)
                     if len(lset)>2 and idx:
@@ -655,39 +1192,47 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         return [self.fpoint(left[0], left[1]), self.fpoint(right[0], right[1])]
 
     def build_slot_center_via(self, arr_a, arr_b, th_center, th_slot):
-        # Pick a deterministic centerline point for the inter-layer via.
+        # Pick a deterministic centerline point for the inter-layer via and verify
+        # that it can actually bridge both coil halves.
         cand = []
         for arr in (arr_a, arr_b):
             for p in arr:
-                try:
-                    x = int(p[0,0]); y = int(p[0,1])
-                except Exception:
-                    flat = np.asarray(p).reshape(-1)
-                    if flat.size < 2:
-                        continue
-                    x = int(flat[0]); y = int(flat[1])
+                x, y = self._point_xy(p)
                 r = math.hypot(x, y)
                 d = abs(self._angle_diff(math.atan2(y, x), th_center))
-                cand.append((d, r, x, y))
+                cand.append((d, r))
 
         if not cand:
-            return self.fpoint(0, 0)
+            return None
 
-        # Prefer points close to centerline, then pick the mid-height point in the slit.
-        d_max = max(th_slot * 0.08, 0.01)
-        close = [c for c in cand if c[0] <= d_max]
+        d_max = max(th_slot * 0.06, 0.008)
+        r_min = max(float(self.r_coil_in) - self.dr, 0.0)
+        r_max = float(self.r_coil_out) + self.dr
+        close = [c for c in cand if c[0] <= d_max and r_min <= c[1] <= r_max]
         if not close:
-            close = sorted(cand, key=lambda c: c[0])[:6]
+            close = [c for c in cand if r_min <= c[1] <= r_max]
+        if not close:
+            return None
 
         r_values = [c[1] for c in close]
         r_low = min(r_values)
         r_high = max(r_values)
-        # Bias slightly upward in the slit so the via stays visually centered,
-        # avoiding the lower-kink cluster selected by a plain midpoint.
-        r_target = r_low + 0.70 * (r_high - r_low)
-        best = min(close, key=lambda c: abs(c[1] - r_target))
-        # Project to exact slot centerline to avoid lateral offset.
-        return self.fpoint(int(best[1] * math.cos(th_center)), int(best[1] * math.sin(th_center)))
+        r_target = r_low + 0.62 * (r_high - r_low)
+        best_radius = min(close, key=lambda c: (abs(c[1] - r_target), c[0]))[1]
+
+        threshold = max(self.trk_w * 0.85, self.dr * 0.65, self.SCALE * 0.15)
+        best = None
+        for radius in sorted({best_radius} | {c[1] for c in close}, key=lambda r: abs(r - r_target)):
+            dist_a = self._nearest_point_distance(radius, th_center, arr_a)
+            dist_b = self._nearest_point_distance(radius, th_center, arr_b)
+            worst = max(dist_a if dist_a is not None else 1e9, dist_b if dist_b is not None else 1e9)
+            if worst <= threshold:
+                best = radius
+                break
+
+        if best is None:
+            return None
+        return self._as_point(best * math.cos(th_center), best * math.sin(th_center))
 
     def add_through_via(self, position, net=None):
         return self.add_custom_through_via(position, net=net, drill=self.d_drill, width=self.d_via)
@@ -1218,8 +1763,8 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
                     m.Rotate(fp_pos, self.eda_angle(-th))
                     for pad in m.Pads():
                         pad.SetNet(net_coil)
-                    dth = 0.05
-                    m.Reference().SetPosition(self.fpoint(int(term_radius * math.cos(th+dth)), int(term_radius * math.sin(th+dth))))
+                    ref_pos = self._get_terminal_label_position(fp_pos, th)
+                    m.Reference().SetPosition(ref_pos)
                     m.SetReference("A" if p == 0 else ("B" if p == 1 else ("C" if p == 2 else "N")))
                     self.board.Add(m)
 
@@ -1235,6 +1780,17 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
         edge.SetEnd( self.fpoint(r_in,0) )
         edge.SetLayer( pcbnew.Edge_Cuts )
         self.board.Add(edge)
+
+        relief_dia = max(min(0.12 * (2.0 * r_in), 2.0 * self.SCALE), 0.8 * self.SCALE) if r_in > 0 else 0
+        if relief_dia > 0 and r_in > (1.5 * relief_dia):
+            relief_radius = r_in + (0.5 * relief_dia)
+            for angle in (math.pi / 4.0, 3.0 * math.pi / 4.0, 5.0 * math.pi / 4.0, 7.0 * math.pi / 4.0):
+                relief = pcbnew.PCB_SHAPE(self.board, pcbnew.SHAPE_T_CIRCLE)
+                relief.SetCenter(self.fpoint(int(relief_radius * math.cos(angle)), int(relief_radius * math.sin(angle))))
+                relief.SetStart(relief.GetCenter())
+                relief.SetEnd(self.fpoint(int(relief.GetCenter().x + relief_dia / 2.0), int(relief.GetCenter().y)))
+                relief.SetLayer(pcbnew.Edge_Cuts)
+                self.board.Add(relief)
 
         if n_edge == 0:
             edge = pcbnew.PCB_SHAPE(self.board, pcbnew.SHAPE_T_CIRCLE)
@@ -1323,19 +1879,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
     def do_thermal_zones(self, r_out, r_nosm_in, r_nosm_out=0, nvias=36, fill_inner_area_gnd=True, fill_outer_area_gnd=True):
         ni_gnd = self.board.FindNet("gnd")
-        # Remove previous generated GND zones so checkbox state is applied
-        # deterministically on each new generation run.
-        zones_to_remove = []
-        for z in self.board.Zones():
-            try:
-                net = z.GetNet()
-            except Exception:
-                net = None
-            on_mask = bool(z.GetLayerSet().Contains(pcbnew.F_Mask) or z.GetLayerSet().Contains(pcbnew.B_Mask))
-            if (net is not None and net.GetNetname() == "gnd") or on_mask:
-                zones_to_remove.append(z)
-        for z in zones_to_remove:
-            self.board.Remove(z)
+        self._cleanup_generated_zones()
 
         ls = pcbnew.LSET()
         for ly in self.lset:
@@ -1366,10 +1910,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             z.SetLocalClearance( self.trk_w )
             z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
             z.SetPadConnection(pcbnew.ZONE_CONNECTION_FULL)
-            try:
-                z.SetAssignedPriority(0)
-            except Exception:
-                pass
+            self._tag_generated_zone(z, "outer_cu")
             self.board.Add(z)
 
         if fill_inner_area_gnd:
@@ -1383,10 +1924,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             z.SetLayerSet(ls)
             z.SetNet(ni_gnd)
             z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
-            try:
-                z.SetAssignedPriority(20)
-            except Exception:
-                pass
+            self._tag_generated_zone(z, "inner_cu")
             self.board.Add(z)
 
         nls = pcbnew.LSET()
@@ -1418,10 +1956,7 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
 
             z.SetLayerSet(nls)
             z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
-            try:
-                z.SetAssignedPriority(0)
-            except Exception:
-                pass
+            self._tag_generated_zone(z, "outer_mask")
             self.board.Add(z)
 
         if fill_inner_area_gnd:
@@ -1434,55 +1969,84 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             z.AddPolygon( self.fpoint_vector(cp) )
             z.SetLayerSet(nls)
             z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
-            try:
-                z.SetAssignedPriority(20)
-            except Exception:
-                pass
+            self._tag_generated_zone(z, "inner_mask")
             self.board.Add(z)
 
         filler.Fill(self.board.Zones())
 
     def do_silkscreen(self, ro, ri, th):
-        pcb_txt = pcbnew.PCB_TEXT(self.board)
-        pcb_txt.SetText(
-            datetime.today().strftime('%Y%m%d') + 
+        slot_deg = 360.0 / max(self.n_slots, 1)
+        stats = getattr(self, "last_stats", {}) or {}
+        phase_r_est = float(stats.get("phase_r_temp", getattr(self, "tr", 0.0)))
+        coil_r_est = float(stats.get("coil_resistance_per_coil", 0.0))
+        build_label = (
+            datetime.today().strftime('%Y%m%d') +
             "_ly" + str(self.n_layers) +
             "_s" + str(self.n_slots) +
             "_w" + str(self.n_loops)
         )
-        pcb_txt.SetPosition( self.fpoint(0,self.txt_loc) )
-        pcb_txt.SetTextSize( self.fsize(self.txt_size,self.txt_size) )
-        pcb_txt.SetLayer(pcbnew.F_SilkS)
-        self.board.Add(pcb_txt)
 
         for r in [ro,ri]:
-            c = pcbnew.PCB_SHAPE(self.board)
-            c.SetShape(pcbnew.SHAPE_T_CIRCLE)
-            c.SetFilled(False)
-            c.SetStart( self.fpoint(0,0) )
-            c.SetEnd( self.fpoint(r,0) )
-            c.SetCenter( self.fpoint(0,0) )
-            c.SetLayer(pcbnew.F_SilkS)
-            self.board.Add(c)
+            self._add_silk_circle(r)
   
         th_0 = 2*math.pi/self.n_slots
         la = 0.05
         for p in range(self.n_slots):
-            xy_s = self.fpoint( 
-                int( (1+la)*ri*math.cos(th_0*p)), 
-                int((1+la)*ri*math.sin(th_0*p))
+            xy_s = (
+                (1 + la) * ri * math.cos(th_0 * p),
+                (1 + la) * ri * math.sin(th_0 * p),
             )
-            xy_e = self.fpoint( 
-                int((1-la)*ro*math.cos(th_0*p)), 
-                int((1-la)*ro*math.sin(th_0*p))
+            xy_e = (
+                (1 - la) * ro * math.cos(th_0 * p),
+                (1 - la) * ro * math.sin(th_0 * p),
             )
-            c = pcbnew.PCB_SHAPE(self.board)
-            c.SetShape(pcbnew.SHAPE_T_SEGMENT)
-            c.SetStart(xy_s)
-            c.SetEnd(xy_e)
-            c.SetLayer(pcbnew.F_SilkS)
-            c.SetWidth( int(0.127*1e6) )
-            self.board.Add(c)
+            self._add_silk_segment(xy_s, xy_e)
+
+        outer_guide_r = max(ro, self._get_outline_outer_radius())
+        degree_ring_r = ro + max(0.9 * self.SCALE, self.trk_space * 2.0)
+        if getattr(self, "silk_cross_guides", False):
+            self._add_silk_cross_guides(outer_guide_r)
+        if getattr(self, "silk_slot_frames", False):
+            self._add_silk_slot_frames(ri, ro)
+        if getattr(self, "silk_deg_scale", False):
+            self._add_silk_circle(degree_ring_r)
+            self._add_silk_arc_ticks(
+                degree_ring_r,
+                0.0,
+                2 * math.pi - math.radians(1.0),
+                step_deg=1.0,
+                tick_inner=0.35,
+                tick_outer=0.0,
+                major_step=10,
+            )
+        if getattr(self, "silk_hole_scales", False):
+            self._add_silk_hole_scales()
+
+        info_anchor = self._get_bottom_right_info_anchor()
+        self._add_silk_text(
+            build_label,
+            (info_anchor[0], info_anchor[1]),
+            0.95,
+            "left",
+        )
+        self._add_silk_text(
+            f"slots {self.n_slots} | {slot_deg:.2f} deg/slot",
+            (info_anchor[0] - 2.6 * self.SCALE, info_anchor[1] - 1.8 * self.SCALE),
+            0.95,
+            "left",
+        )
+        self._add_silk_text(
+            f"R / phase: {phase_r_est:.4f} ohm",
+            (info_anchor[0] - 2.6 * self.SCALE, info_anchor[1] - 3.6 * self.SCALE),
+            0.95,
+            "left",
+        )
+        self._add_silk_text(
+            f"R / coil: {coil_r_est:.4f} ohm",
+            (info_anchor[0] - 2.6 * self.SCALE, info_anchor[1] - 5.4 * self.SCALE),
+            0.95,
+            "left",
+        )
 
     def fillet(self, board, t1, t2, r, side=1):
         t1_arc = t1.GetClass() == 'PCB_ARC'
@@ -1654,9 +2218,10 @@ class KiMotorDialog ( kimotor_gui.KiMotorGUI ):
             self.m_ctrlTrackWidth.SetValue(0.3)
         elif preset == 1:
             self.m_ctrlTrackWidth.SetValue(0.127)
-        elif preset == 1:
-            self.m_ctrlTrackWidth.SetValue(0.127)
-        event.Skip()
+        elif preset == 2:
+            self.m_ctrlTrackWidth.SetValue(0.15)
+        if event is not None:
+            event.Skip()
 
     def on_cb_outline(self, event):
         if self.m_cbOutline.GetStringSelection() == "None":

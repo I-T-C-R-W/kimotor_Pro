@@ -29,6 +29,8 @@ def line(lt):
     p2 = lt[1]
     dx = p2[0]-p1[0]
     dy = p2[1]-p1[1]
+    if abs(dx) < 1e-12:
+        return math.inf, p1[0]
     m = dy/dx
     k = p1[1] - m * p1[0]
     return m, k
@@ -175,33 +177,36 @@ def circle_line_intersect(l, c,r, ref=1):
         _type_: coordinates of the point of intersect
     """
 
-    # TODO: this fails for dx=0 (m=inf)
-    m,k = line(l)
+    p0 = np.array([float(l[0][0]), float(l[0][1]), 0.0])
+    p1 = np.array([float(l[1][0]), float(l[1][1]), 0.0])
+    center = np.array([float(c[0]), float(c[1]), 0.0])
+    d = p1 - p0
+    a = float(np.dot(d[:2], d[:2]))
+    if a <= 1e-18:
+        raise ValueError("circle_line_intersect: degenerate line")
 
-    xc = c[0]
-    yc = c[1]
+    f = p0 - center
+    b = 2.0 * float(np.dot(f[:2], d[:2]))
+    cc = float(np.dot(f[:2], f[:2]) - (r ** 2))
+    dsc = b**2 - 4.0 * a * cc
+    if dsc < -1e-9:
+        raise ValueError("circle_line_intersect: no valid intersection")
+    dsc = max(dsc, 0.0)
 
-    a = 1+m**2
-    b = 2 * (m*k - m*yc - xc)
-    c = k**2 + xc**2 + yc**2 - r**2 - 2*k*yc
+    sqrt_dsc = math.sqrt(dsc)
+    t1 = (-b - sqrt_dsc) / (2.0 * a)
+    t2 = (-b + sqrt_dsc) / (2.0 * a)
+    cand1 = p0 + t1 * d
+    cand2 = p0 + t2 * d
 
-    dsc = b**2 - 4*a*c
-    #wx.LogError(f'dsc {dsc}')
-    #dsc = np.abs(dsc)
-
-    # pick the intersect point closest to the selected reference
-    # point (start or end) of the line
-    pref = np.array(l[ref])
-    x1 = (-b - math.sqrt(dsc)) / (2*a)
-    p1 = np.array([x1, m*x1 + k, 0])
-    x2 = (-b + math.sqrt(dsc)) / (2*a)
-    p2 = np.array([x2, m*x2 + k, 0])
-
-    d1 = np.linalg.norm(p1-pref)
-    d2 = np.linalg.norm(p2-pref)
-
-    # TODO: what if equal? we should add a check beforehand
-    return p1 if d1<d2 else p2
+    pref = np.array([float(l[ref][0]), float(l[ref][1]), 0.0])
+    d1 = np.linalg.norm(cand1 - pref)
+    d2 = np.linalg.norm(cand2 - pref)
+    if abs(d1 - d2) <= 1e-6:
+        r1 = np.linalg.norm(cand1 - center)
+        r2 = np.linalg.norm(cand2 - center)
+        return cand1 if r1 <= r2 else cand2
+    return cand1 if d1 < d2 else cand2
 
 def circle_circle_intersect(c1,r1,c2,r2):
     """ Find the intersection of two circles

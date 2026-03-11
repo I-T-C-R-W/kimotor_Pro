@@ -39,7 +39,7 @@ class KiMotorGUI ( wx.Frame ):
 
 		m_cbOutlineChoices =[ u"None", u"Circle", u"Square", u"Hexagon", u"Octagon" ]
 		self.m_cbOutline = wx.ComboBox( sbSizer2.GetStaticBox(), wx.ID_ANY, u"Circle", wx.DefaultPosition, wx.Size( 150,20 ), m_cbOutlineChoices, wx.CB_DROPDOWN|wx.CB_READONLY, wx.DefaultValidator, u"m_cbOutline" )
-		self.m_cbOutline.SetSelection( 0 )
+		self.m_cbOutline.SetSelection( 1 )
 		bSizer21211.Add( self.m_cbOutline, 0, wx.ALL, 5 )
 
 		sbMechBoard.Add( bSizer21211, 0, wx.EXPAND, 5 )
@@ -261,6 +261,7 @@ class KiMotorGUI ( wx.Frame ):
 		sbSizer2.Add( sbMechMount, 0, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 4 )
 		sbSizer2.Add( sbMechSupport, 0, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 4 )
 
+		sbSizer2.GetStaticBox().SetMinSize( wx.Size( 340,-1 ) )
 		bSizerMainRow.Add( sbSizer2, 1, wx.EXPAND|wx.ALL, 6 )
 
 		sbSizer1 = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Electrical" ), wx.VERTICAL )
@@ -561,6 +562,108 @@ class KiMotorGUI ( wx.Frame ):
 		self.m_chkFillOuterGnd = self.m_cbFillOuterGND
 		sbMechSupport.Add( self.m_cbFillOuterGND, 1, wx.ALL|wx.EXPAND, 5 )
 
+		self.m_cbSilkCross = wx.CheckBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Silk cross + X guides", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"m_cbSilkCross" )
+		self.m_cbSilkCross.SetValue( False ) 
+		sbMechSupport.Add( self.m_cbSilkCross, 1, wx.ALL|wx.EXPAND, 5 )
+
+		self.m_cbSilkDeg = wx.CheckBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Silk 1 deg ring scale", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"m_cbSilkDeg" )
+		self.m_cbSilkDeg.SetValue( False ) 
+		sbMechSupport.Add( self.m_cbSilkDeg, 1, wx.ALL|wx.EXPAND, 5 )
+
+		self.m_cbSilkSlots = wx.CheckBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Silk slot frames", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"m_cbSilkSlots" )
+		self.m_cbSilkSlots.SetValue( False ) 
+		sbMechSupport.Add( self.m_cbSilkSlots, 1, wx.ALL|wx.EXPAND, 5 )
+
+		self.m_cbSilkHoleScale = wx.CheckBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Silk hole angle scales", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"m_cbSilkHoleScale" )
+		self.m_cbSilkHoleScale.SetValue( False ) 
+		sbMechSupport.Add( self.m_cbSilkHoleScale, 1, wx.ALL|wx.EXPAND, 5 )
+
+		bSizerCornerOffset = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_cornerHoleOffset = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Corner hole offset:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_cornerHoleOffset" )
+		self.lbl_cornerHoleOffset.Wrap( -1 )
+		bSizerCornerOffset.Add( self.lbl_cornerHoleOffset, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		bSizerCornerOffset.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.m_ctrlCornerHoleOffset = SpinCtrlDoublePersist( sbSizer1.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 0, 100, 10.0, 0.1, u"m_ctrlCornerHoleOffset" )
+		self.m_ctrlCornerHoleOffset.SetDigits( 2 )
+		bSizerCornerOffset.Add( self.m_ctrlCornerHoleOffset, 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.EXPAND, 5 )
+
+		self.lbl_cornerHoleOffsetUnit = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"[mm]", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_cornerHoleOffsetUnit" )
+		self.lbl_cornerHoleOffsetUnit.Wrap( -1 )
+		bSizerCornerOffset.Add( self.lbl_cornerHoleOffsetUnit, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		sbMechSupport.Add( bSizerCornerOffset, 0, wx.EXPAND, 5 )
+
+		bSizerCornerDia = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_cornerHoleDia = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Corner hole dia:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_cornerHoleDia" )
+		self.lbl_cornerHoleDia.Wrap( -1 )
+		bSizerCornerDia.Add( self.lbl_cornerHoleDia, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		bSizerCornerDia.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.m_ctrlCornerHoleDia = SpinCtrlDoublePersist( sbSizer1.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 0, 50, 3.2, 0.1, u"m_ctrlCornerHoleDia" )
+		self.m_ctrlCornerHoleDia.SetDigits( 2 )
+		bSizerCornerDia.Add( self.m_ctrlCornerHoleDia, 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.EXPAND, 5 )
+
+		self.lbl_cornerHoleDiaUnit = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"[mm]", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_cornerHoleDiaUnit" )
+		self.lbl_cornerHoleDiaUnit.Wrap( -1 )
+		bSizerCornerDia.Add( self.lbl_cornerHoleDiaUnit, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		sbMechSupport.Add( bSizerCornerDia, 0, wx.EXPAND, 5 )
+
+		bSizerCornerCount = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_cornerHoleCount = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Corner hole count:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_cornerHoleCount" )
+		self.lbl_cornerHoleCount.Wrap( -1 )
+		bSizerCornerCount.Add( self.lbl_cornerHoleCount, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		bSizerCornerCount.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.m_ctrlCornerHoleCount = SpinCtrlDoublePersist( sbSizer1.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 0, 4, 4, 1, u"m_ctrlCornerHoleCount" )
+		self.m_ctrlCornerHoleCount.SetDigits( 0 )
+		bSizerCornerCount.Add( self.m_ctrlCornerHoleCount, 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.EXPAND, 5 )
+
+		sbMechSupport.Add( bSizerCornerCount, 0, wx.EXPAND, 5 )
+
+		bSizerCornerStep = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_cornerScaleStep = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Corner scale step:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_cornerScaleStep" )
+		self.lbl_cornerScaleStep.Wrap( -1 )
+		bSizerCornerStep.Add( self.lbl_cornerScaleStep, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		bSizerCornerStep.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.m_ctrlCornerScaleStep = SpinCtrlDoublePersist( sbSizer1.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 0.1, 5.0, 1.0, 0.1, u"m_ctrlCornerScaleStep" )
+		self.m_ctrlCornerScaleStep.SetDigits( 2 )
+		bSizerCornerStep.Add( self.m_ctrlCornerScaleStep, 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.EXPAND, 5 )
+
+		self.lbl_cornerScaleStepUnit = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"[deg]", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_cornerScaleStepUnit" )
+		self.lbl_cornerScaleStepUnit.Wrap( -1 )
+		bSizerCornerStep.Add( self.lbl_cornerScaleStepUnit, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		sbMechSupport.Add( bSizerCornerStep, 0, wx.EXPAND, 5 )
+
+		bSizerCornerSpan = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_cornerScaleSpan = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Corner scale span:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_cornerScaleSpan" )
+		self.lbl_cornerScaleSpan.Wrap( -1 )
+		bSizerCornerSpan.Add( self.lbl_cornerScaleSpan, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		bSizerCornerSpan.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.m_ctrlCornerScaleSpan = SpinCtrlDoublePersist( sbSizer1.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 0.5, 20.0, 5.0, 0.1, u"m_ctrlCornerScaleSpan" )
+		self.m_ctrlCornerScaleSpan.SetDigits( 2 )
+		bSizerCornerSpan.Add( self.m_ctrlCornerScaleSpan, 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.EXPAND, 5 )
+
+		self.lbl_cornerScaleSpanUnit = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"[deg]", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_cornerScaleSpanUnit" )
+		self.lbl_cornerScaleSpanUnit.Wrap( -1 )
+		bSizerCornerSpan.Add( self.lbl_cornerScaleSpanUnit, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		sbMechSupport.Add( bSizerCornerSpan, 0, wx.EXPAND, 5 )
+
 		bSizer271 = wx.BoxSizer( wx.HORIZONTAL )
 
 		self.lbl_refresh_time131122 = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Terminal pads:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_refresh_time1311" )
@@ -593,6 +696,11 @@ class KiMotorGUI ( wx.Frame ):
 			self.lbl_refresh_time2111, self.lbl_refresh_time1122, self.m_ctrlRfill,
 			self.m_cbFillInnerGND, self.lbl_innerFillDia, self.m_ctrlInnerGndDia, self.lbl_innerFillDiaUnit,
 			self.m_cbFillOuterGND,
+			self.m_cbSilkCross, self.m_cbSilkDeg, self.m_cbSilkSlots, self.m_cbSilkHoleScale,
+			self.lbl_cornerHoleOffset, self.m_ctrlCornerHoleOffset, self.lbl_cornerHoleOffsetUnit,
+			self.lbl_cornerHoleDia, self.m_ctrlCornerHoleDia, self.lbl_cornerHoleDiaUnit,
+			self.lbl_cornerHoleCount, self.m_ctrlCornerHoleCount,
+			self.lbl_cornerScaleStep, self.m_ctrlCornerScaleStep, self.lbl_cornerScaleStepUnit,
 			self.lbl_refresh_time131122, self.m_cbTP, self.lbl_refresh_time1311221, self.m_termSize, self.lbl_termAreaUnit
 		):
 			_w.Reparent(sbSizer2.GetStaticBox())
@@ -602,6 +710,7 @@ class KiMotorGUI ( wx.Frame ):
 		sbSizer1.Add( sbElecMotor, 0, wx.EXPAND|wx.ALL, 4 )
 		sbSizer1.Add( sbElecRouting, 0, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 4 )
 
+		sbSizer1.GetStaticBox().SetMinSize( wx.Size( 340,-1 ) )
 		bSizerMainRow.Add( sbSizer1, 1, wx.EXPAND|wx.ALL, 6 )
 
 		sbSizer111 = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Physics / Stats" ), wx.VERTICAL )
@@ -714,6 +823,7 @@ class KiMotorGUI ( wx.Frame ):
 
 		sbSizer111.Add( bSizerRingR, 0, wx.EXPAND, 5 )
 
+		sbSizer111.GetStaticBox().SetMinSize( wx.Size( 340,-1 ) )
 		bSizerMainRow.Add( sbSizer111, 1, wx.EXPAND|wx.ALL, 6 )
 
 		sbSizerStatus = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Status" ), wx.VERTICAL )

@@ -34,12 +34,12 @@
   },
   "release": {
     "version": "0.1.0",
-    "channel": "work",
-    "status": "stable-baseline",
+    "channel": "stable",
+    "status": "stable",
     "notes": [
-      "First stable KiMotor Pro baseline on branch work.",
-      "GUI hard errors fixed in current local baseline.",
-      "PCB preset remains in code for compatibility but is hidden in GUI (TODO: vendor presets)."
+      "First stable release with radial-default routing and deterministic board output.",
+      "Corner alignment helpers, resistance stats and safer geometry handling are included.",
+      "Generated GND and mask zones are replaced without deleting unrelated user zones."
     ]
   }
 }
