@@ -1,6 +1,6 @@
 # KMotor_Pro v0.1.3
 
-Package metadata fix release.
+Package metadata fix release for KiCad 9.
 
 ## Fixes
 

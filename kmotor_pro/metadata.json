@@ -11,7 +11,7 @@
     "name": "I-T-C-R-W",
     "contact": "https://github.com/I-T-C-R-W/kimotor_Pro"
   },
-  "license": "GPL-2.0-only",
+  "license": "GPL-2.0",
   "homepage": "https://github.com/I-T-C-R-W/kimotor_Pro",
   "repository": "https://github.com/I-T-C-R-W/kimotor_Pro",
   "resources": {
@@ -33,13 +33,13 @@
     "python": "3.x"
   },
   "release": {
-    "version": "0.1.2",
+    "version": "0.1.3",
     "channel": "stable",
     "status": "stable",
     "notes": [
-      "Packaging-fix release for the first public KMotor_Pro package.",
-      "The install ZIP now uses KiCad PCM layout with metadata.json, plugins and resources.",
-      "Application features remain unchanged from the 0.1.1 error-fix release."
+      "KiCad PCM metadata license adjusted to a supported enum value.",
+      "Fixes package metadata parsing during Install from File.",
+      "Application features remain unchanged from the 0.1.2 packaging-fix release."
     ]
   }
 }
