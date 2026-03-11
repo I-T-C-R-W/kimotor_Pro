@@ -33,13 +33,13 @@
     "python": "3.x"
   },
   "release": {
-    "version": "0.1.0",
+    "version": "0.1.1",
     "channel": "stable",
     "status": "stable",
     "notes": [
-      "First stable release with radial-default routing and deterministic board output.",
-      "Corner alignment helpers, resistance stats and safer geometry handling are included.",
-      "Generated GND and mask zones are replaced without deleting unrelated user zones."
+      "Error-fix release for the first public KMotor_Pro package.",
+      "The install ZIP now places metadata.json at archive root for KiCad file installation.",
+      "Corner alignment helpers, resistance stats and safer geometry handling remain included."
     ]
   }
 }
