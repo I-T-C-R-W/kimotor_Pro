@@ -33,13 +33,13 @@
     "python": "3.x"
   },
   "release": {
-    "version": "0.1.1",
+    "version": "0.1.2",
     "channel": "stable",
     "status": "stable",
     "notes": [
-      "Error-fix release for the first public KMotor_Pro package.",
-      "The install ZIP now places metadata.json at archive root for KiCad file installation.",
-      "Corner alignment helpers, resistance stats and safer geometry handling remain included."
+      "Packaging-fix release for the first public KMotor_Pro package.",
+      "The install ZIP now uses KiCad PCM layout with metadata.json, plugins and resources.",
+      "Application features remain unchanged from the 0.1.1 error-fix release."
     ]
   }
 }
