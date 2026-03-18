@@ -798,6 +798,55 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         if hasattr(self, "m_txtStatus") and self.m_txtStatus:
             self.m_txtStatus.SetValue(f"[{ts}] {text}")
 
+    def _format_exception(self, exc):
+        msg = str(exc).strip()
+        return msg if msg else exc.__class__.__name__
+
+    def _log_exception(self, title, exc):
+        detail = self._format_exception(exc)
+        tb = traceback.format_exc().strip()
+        if tb:
+            wx.LogError(f"{title}:\n{detail}\n\n{tb}")
+        else:
+            wx.LogError(f"{title}:\n{detail}")
+
+    def _safe_ui_yield(self):
+        try:
+            self.Update()
+            wx.YieldIfNeeded()
+        except Exception:
+            pass
+
+    def _safe_refresh_board(self):
+        try:
+            self.board.BuildConnectivity()
+        except Exception:
+            pass
+        try:
+            pcbnew.Refresh()
+        except Exception:
+            pass
+        try:
+            pcbnew.UpdateUserInterface()
+        except Exception:
+            pass
+
+    def _run_action(self, start_status, success_status, title, callback, summary_target=None):
+        self.set_status(start_status)
+        self._safe_ui_yield()
+        try:
+            result = callback()
+            self._safe_refresh_board()
+            self.set_status(success_status)
+            return result
+        except Exception as exc:
+            message = self._format_exception(exc)
+            self.set_status(f"{title} failed")
+            if summary_target == "magnet":
+                self._update_magnet_summary(message)
+            self._log_exception(f"{title} failed", exc)
+            return None
+
     def validate_parameters(self):
         errors = []
         if self.n_slots <= 0:
@@ -2647,7 +2696,11 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         return stats["phase_len_mm"], stats["phase_r_temp"]
 
     def on_close(self, event):
-        self.pm.SaveAndUnregister()
+        try:
+            self.pm.SaveAndUnregister()
+        except Exception as exc:
+            self.set_status("Close warning")
+            self._log_exception("Close persistence failed", exc)
         event.Skip()
 
     def on_btn_clear(self, event):
@@ -2658,97 +2711,86 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         event.Skip()
 
     def on_btn_generate(self, event):
-        self.set_status("Started: generation running (can take 5-60 s)")
-        try:
-            self.Update()
-            wx.YieldIfNeeded()
-        except Exception:
-            pass
-        self.generate()
+        self._run_action(
+            "Started: generation running (can take 5-60 s)",
+            "Finished",
+            "Generation",
+            self.generate,
+        )
         event.Skip()
 
     def on_btn_generate_magnet(self, event):
-        self.set_status("Started: magnet PCB generation running")
-        try:
-            self.Update()
-            wx.YieldIfNeeded()
-        except Exception:
-            pass
-
-        try:
-            self.generate_magnet_pcb()
-            self.board.BuildConnectivity()
-            pcbnew.Refresh()
-            try:
-                pcbnew.UpdateUserInterface()
-            except Exception:
-                pass
-            self.set_status("Magnet PCB generated")
-        except Exception as e:
-            self._update_magnet_summary(str(e))
-            self.set_status("Magnet PCB generation failed")
-            wx.LogError(f"Magnet PCB generation failed:\n{e}")
+        self._run_action(
+            "Started: magnet PCB generation running",
+            "Magnet PCB generated",
+            "Magnet PCB generation",
+            self.generate_magnet_pcb,
+            summary_target="magnet",
+        )
         event.Skip()
 
     def on_btn_generate_both(self, event):
-        self.set_status("Started: combined stator + magnet generation running")
-        try:
-            self.Update()
-            wx.YieldIfNeeded()
-        except Exception:
-            pass
-
-        try:
+        def _generate_both():
             self.generate()
             self.generate_magnet_pcb()
-            try:
-                self.board.BuildConnectivity()
-            except Exception:
-                pass
-            pcbnew.Refresh()
-            try:
-                pcbnew.UpdateUserInterface()
-            except Exception:
-                pass
-            self.set_status("Stator and Magnet PCB generated")
-        except Exception as e:
-            self.set_status("Combined generation failed")
-            wx.LogError(f"Combined generation failed:\n{e}")
+
+        self._run_action(
+            "Started: combined stator + magnet generation running",
+            "Stator and Magnet PCB generated",
+            "Combined generation",
+            _generate_both,
+            summary_target="magnet",
+        )
         event.Skip()
 
     def on_btn_save(self, event):
-        self.pm.SaveAndUnregister()
-        self.pm.RegisterAndRestoreAll(self)
-        with wx.FileDialog(self, "Save KMotor_Pro preset", wildcard="KMT files (*.kmt)|*.kmt",
-                       style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
-            fileDialog.SetFilename("kmotor_pro.kmt")
-            if fileDialog.ShowModal() == wx.ID_CANCEL:
-                return   
-            try:
+        self.set_status("Saving preset")
+        try:
+            self.pm.SaveAndUnregister()
+            self.pm.RegisterAndRestoreAll(self)
+            with wx.FileDialog(self, "Save KMotor_Pro preset", wildcard="KMT files (*.kmt)|*.kmt",
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+                fileDialog.SetFilename("kmotor_pro.kmt")
+                if fileDialog.ShowModal() == wx.ID_CANCEL:
+                    self.set_status("Save cancelled")
+                    return
                 origin = self.pf
                 target = fileDialog.GetPath()
                 shutil.copyfile(origin, target)
-            except IOError:
-                wx.LogError("Cannot save current data in file '%s'." % target)
+            self.set_status("Preset saved")
+        except Exception as exc:
+            self.set_status("Save failed")
+            self._log_exception("Preset save failed", exc)
 
     def on_btn_load(self, event):
-        with wx.FileDialog(self, "Load KMotor_Pro preset", wildcard="KMT files (*.kmt)|*.kmt",
-                        style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
-            if fileDialog.ShowModal() == wx.ID_CANCEL:
-                return
-            try:
+        self.set_status("Loading preset")
+        try:
+            with wx.FileDialog(self, "Load KMotor_Pro preset", wildcard="KMT files (*.kmt)|*.kmt",
+                            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
+                if fileDialog.ShowModal() == wx.ID_CANCEL:
+                    self.set_status("Load cancelled")
+                    return
                 origin = fileDialog.GetPath()
                 target = self.pf
                 tmp = fileDialog.GetDirectory() + "/kmotor_pro.tmp"
-                
+
                 self.pm.SetPersistenceFile(tmp)
                 self.pm.SaveAndUnregister()
                 shutil.copyfile(origin, target)
                 self.pm.SetPersistenceFile(target)
                 self.pm.RegisterAndRestoreAll(self)
-                
-            except IOError:
-                wx.LogError("Cannot open file '%s'." % origin)
+                self.on_cb_outline(None)
+                self.on_cb_trmtype(None)
+                self.on_cb_magnet_shape(None)
+            self.set_status("Preset loaded")
+        except Exception as exc:
+            try:
+                self.pm.SetPersistenceFile(self.pf)
+                self.pm.RegisterAndRestoreAll(self)
+            except Exception:
+                pass
+            self.set_status("Load failed")
+            self._log_exception("Preset load failed", exc)
 
     def on_cb_preset(self, event):
         if not hasattr(self, "m_cbPreset"):
