@@ -62,6 +62,12 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
     angle = None
 
     tthick = 35e-6 # [m] copper thickness (1oz layer specs)
+    COPPER_WEIGHT_TO_THICKNESS_M = {
+        "0.5 oz / 18um": 18e-6,
+        "1 oz / 35um": 35e-6,
+        "2 oz / 70um": 70e-6,
+        "3 oz / 105um": 105e-6,
+    }
 
     term_tht_db = {
         "0.1"   : "SolderWire-0.1sqmm_1x01_D0.4mm_OD1mm",
@@ -126,6 +132,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         self.init_nets()
         self.on_cb_outline(None)
         self.on_cb_trmtype(None)
+        self.on_cb_winding_mode(None)
         self.on_cb_magnet_shape(None)
         self.set_status("Ready")
     
@@ -713,6 +720,10 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         self.lset = self.udpate_lset(self.n_layers)
         self.n_loops  = int(self.m_ctrlLoops.GetValue())
         self.n_slots  = int(self.m_ctrlSlots.GetValue())
+        self.winding_mode = self.m_cbWindingMode.GetStringSelection() if hasattr(self, "m_cbWindingMode") else "PCB"
+        self.copper_weight = self.m_cbCopperWeight.GetStringSelection() if hasattr(self, "m_cbCopperWeight") else "1 oz / 35um"
+        self.copper_thickness_m = self.COPPER_WEIGHT_TO_THICKNESS_M.get(self.copper_weight, self.tthick)
+        self.wire_dia_mm = float(self.m_ctrlWireDia.GetValue()) if hasattr(self, "m_ctrlWireDia") else 0.50
         
         self.strategy = self.m_cbStrategy.GetSelection()
 
@@ -789,6 +800,28 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
 
         if self.group:
             self.btn_clear.Enable(True)
+
+    def _effective_winding_layers(self):
+        return max(int(getattr(self, "n_layers", 1)), 1)
+
+    def _winding_pitch_mm(self):
+        if getattr(self, "winding_mode", "PCB") == "Wire":
+            return max(self.wire_dia_mm + (self.trk_space / self.SCALE), self.wire_dia_mm, 1e-6)
+        return max((self.trk_w + self.trk_space) / self.SCALE, 1e-6)
+
+    def _estimate_turns_per_layer(self):
+        active_span_mm = max((self.r_coil_out - self.r_coil_in) / self.SCALE, 0.0)
+        layers = self._effective_winding_layers()
+        pitch_mm = self._winding_pitch_mm()
+        capacity = max(int(math.floor(active_span_mm / max(pitch_mm, 1e-6))), 0)
+        turns_per_layer = self.n_loops / max(layers, 1)
+        return {
+            "turns_per_layer_est": turns_per_layer,
+            "turn_capacity_per_layer_est": capacity,
+            "effective_layers": layers,
+            "active_span_mm": active_span_mm,
+            "pitch_mm": pitch_mm,
+        }
 
     def set_status(self, text):
         ts = datetime.now().strftime("%H:%M:%S")
@@ -1456,6 +1489,10 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             self.tr = stats["phase_r_temp"]
 
             self.lbl_phaseLength.SetLabel('%.2f' % self.tl)
+            if hasattr(self, "lbl_turnsPerLayer"):
+                self.lbl_turnsPerLayer.SetLabel('%.2f' % stats["turns_per_layer_est"])
+            if hasattr(self, "lbl_copperLength"):
+                self.lbl_copperLength.SetLabel('%.3f' % stats["copper_length_total_m"])
             self.lbl_phaseR.SetLabel('%.3f' % self.tr)
             self.lbl_totalR.SetLabel('%.3f' % stats["total_resistance"])
             self.lbl_coilR.SetLabel('%.3f' % stats["coil_resistance_per_coil"])
@@ -1490,8 +1527,10 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                 self.m_txtStatus.SetValue(
                     "Finished\n"
                     f"Length total: {stats['total_length_mm']:.2f} mm\n"
+                    f"Copper total: {stats['copper_length_total_m']:.3f} m\n"
                     f"Length / phase: {stats['phase_len_mm']:.2f} mm\n"
                     f"Length / coil: {stats['coil_length_per_coil_mm']:.2f} mm\n"
+                    f"Turns / layer est: {stats['turns_per_layer_est']:.2f}\n"
                     f"Length rings total: {stats['ring_length_mm']:.2f} mm\n"
                     f"R total: {stats['total_resistance']:.4f} ohm\n"
                     f"R / phase: {stats['phase_r_temp']:.4f} ohm\n"
@@ -2655,7 +2694,11 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                 width_m = item.GetWidth() / self.SCALE / 1000.0
                 
                 l_total += length_m
-                A = width_m * self.tthick 
+                if getattr(self, "winding_mode", "PCB") == "Wire":
+                    wire_dia_m = max(float(getattr(self, "wire_dia_mm", 0.5)) / 1000.0, 1e-9)
+                    A = math.pi * (wire_dia_m * 0.5) ** 2
+                else:
+                    A = width_m * float(getattr(self, "copper_thickness_m", self.tthick))
                 
                 if A > 0:
                     r_part = rho * (length_m / A)
@@ -2674,11 +2717,13 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         ring_r_temp = r_ring_20 * (1 + alpha * (temp - 20))
         coil_r_temp = r_coil_20 * (1 + alpha * (temp - 20))
         coil_res_per_coil = coil_r_temp / max(self.n_slots, 1)
+        winding_stats = self._estimate_turns_per_layer()
 
         coils_count = max(self.n_slots, 1)
         phases_count = max(self.phases, 1)
         return {
             "total_length_mm": l_total * 1000.0,
+            "total_length_m": l_total,
             "phase_len_mm": phase_len_mm,
             "phase_r_temp": phase_r_temp,
             "total_resistance": total_r_temp,
@@ -2689,6 +2734,11 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             "coil_length_per_coil_mm": (l_coil * 1000.0) / coils_count,
             "coil_resistance_total": coil_r_temp,
             "ring_resistance_per_phase": ring_r_temp / phases_count,
+            "winding_mode": getattr(self, "winding_mode", "PCB"),
+            "turns_per_layer_est": winding_stats["turns_per_layer_est"],
+            "turn_capacity_per_layer_est": winding_stats["turn_capacity_per_layer_est"],
+            "effective_layers": winding_stats["effective_layers"],
+            "copper_length_total_m": l_total,
         }
 
     def calculate_stats(self, board, net_name="coil", temp=20):
@@ -2781,12 +2831,17 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                 self.pm.RegisterAndRestoreAll(self)
                 self.on_cb_outline(None)
                 self.on_cb_trmtype(None)
+                self.on_cb_winding_mode(None)
                 self.on_cb_magnet_shape(None)
             self.set_status("Preset loaded")
         except Exception as exc:
             try:
                 self.pm.SetPersistenceFile(self.pf)
                 self.pm.RegisterAndRestoreAll(self)
+                self.on_cb_outline(None)
+                self.on_cb_trmtype(None)
+                self.on_cb_winding_mode(None)
+                self.on_cb_magnet_shape(None)
             except Exception:
                 pass
             self.set_status("Load failed")
@@ -2835,6 +2890,17 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                 self.m_termSize.GetString(
                     self.m_termSize.GetCurrentSelection()))
             self.m_termSize.Enable(True)
+
+        if event is not None:
+            event.Skip()
+
+    def on_cb_winding_mode(self, event):
+        mode = self.m_cbWindingMode.GetStringSelection() if hasattr(self, "m_cbWindingMode") else "PCB"
+        is_pcb = (mode == "PCB")
+        for ctrl in (self.lbl_copperWeight, self.m_cbCopperWeight):
+            ctrl.Enable(is_pcb)
+        for ctrl in (self.lbl_wireDia, self.m_ctrlWireDia, self.lbl_wireDiaUnit):
+            ctrl.Enable(not is_pcb)
 
         if event is not None:
             event.Skip()

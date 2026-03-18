@@ -364,17 +364,65 @@ class KMotorProGUI ( wx.Frame ):
 
 		bSizer212 = wx.BoxSizer( wx.HORIZONTAL )
 
-		self.lbl_refresh_time12 = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"PCB layers:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_refresh_time12" )
-		self.lbl_refresh_time12.Wrap( -1 )
-		bSizer212.Add( self.lbl_refresh_time12, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		self.lbl_windingMode = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Winding mode:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_windingMode" )
+		self.lbl_windingMode.Wrap( -1 )
+		bSizer212.Add( self.lbl_windingMode, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
 
 		bSizer212.Add( ( 0, 0), 1, wx.EXPAND, 5 )
 
-		self.m_ctrlLayers = SpinCtrlDoublePersist( sbSizer1.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 2, 20, 2, 2, u"m_ctrlLayers" )
-		self.m_ctrlLayers.SetDigits( 0 )
-		bSizer212.Add( self.m_ctrlLayers, 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.EXPAND, 5 )
+		m_cbWindingModeChoices =[ u"PCB", u"Wire" ]
+		self.m_cbWindingMode = wx.ComboBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"PCB", wx.DefaultPosition, wx.DefaultSize, m_cbWindingModeChoices, wx.CB_DROPDOWN|wx.CB_READONLY, wx.DefaultValidator, u"m_cbWindingMode" )
+		self.m_cbWindingMode.SetSelection( 0 )
+		bSizer212.Add( self.m_cbWindingMode, 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.EXPAND, 5 )
 
 		sbElecRouting.Add( bSizer212, 0, wx.EXPAND, 5 )
+
+		bSizer212w = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_refresh_time12 = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"PCB layers:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_refresh_time12" )
+		self.lbl_refresh_time12.Wrap( -1 )
+		bSizer212w.Add( self.lbl_refresh_time12, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		bSizer212w.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.m_ctrlLayers = SpinCtrlDoublePersist( sbSizer1.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 1, 20, 2, 1, u"m_ctrlLayers" )
+		self.m_ctrlLayers.SetDigits( 0 )
+		bSizer212w.Add( self.m_ctrlLayers, 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.EXPAND, 5 )
+
+		sbElecRouting.Add( bSizer212w, 0, wx.EXPAND, 5 )
+
+		bSizerCopperWeight = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_copperWeight = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Copper weight:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_copperWeight" )
+		self.lbl_copperWeight.Wrap( -1 )
+		bSizerCopperWeight.Add( self.lbl_copperWeight, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		bSizerCopperWeight.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		m_cbCopperWeightChoices =[ u"0.5 oz / 18um", u"1 oz / 35um", u"2 oz / 70um", u"3 oz / 105um" ]
+		self.m_cbCopperWeight = wx.ComboBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"1 oz / 35um", wx.DefaultPosition, wx.DefaultSize, m_cbCopperWeightChoices, wx.CB_DROPDOWN|wx.CB_READONLY, wx.DefaultValidator, u"m_cbCopperWeight" )
+		self.m_cbCopperWeight.SetSelection( 1 )
+		bSizerCopperWeight.Add( self.m_cbCopperWeight, 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.EXPAND, 5 )
+
+		sbElecRouting.Add( bSizerCopperWeight, 0, wx.EXPAND, 5 )
+
+		bSizerWireDia = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_wireDia = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Wire dia:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_wireDia" )
+		self.lbl_wireDia.Wrap( -1 )
+		bSizerWireDia.Add( self.lbl_wireDia, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		bSizerWireDia.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.m_ctrlWireDia = SpinCtrlDoublePersist( sbSizer1.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 0.01, 10, 0.50, 0.01, u"m_ctrlWireDia" )
+		self.m_ctrlWireDia.SetDigits( 3 )
+		bSizerWireDia.Add( self.m_ctrlWireDia, 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.EXPAND, 5 )
+
+		self.lbl_wireDiaUnit = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"[mm]", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_wireDiaUnit" )
+		self.lbl_wireDiaUnit.Wrap( -1 )
+		bSizerWireDia.Add( self.lbl_wireDiaUnit, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		sbElecRouting.Add( bSizerWireDia, 0, wx.EXPAND, 5 )
 
 		bSizer211 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -743,7 +791,7 @@ class KMotorProGUI ( wx.Frame ):
 
 		bSizer21321 = wx.BoxSizer( wx.HORIZONTAL )
 
-		self.lbl_refresh_time1321 = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"Phase wire length", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_refresh_time1321" )
+		self.lbl_refresh_time1321 = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"Phase conductor length", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_refresh_time1321" )
 		self.lbl_refresh_time1321.Wrap( -1 )
 		bSizer21321.Add( self.lbl_refresh_time1321, 0, wx.ALL, 5 )
 
@@ -758,6 +806,42 @@ class KMotorProGUI ( wx.Frame ):
 		bSizer21321.Add( self.lbl_refresh_time13121111, 0, wx.ALL, 5 )
 
 		sbSizer111.Add( bSizer21321, 0, wx.EXPAND, 5 )
+
+		bSizerTurnsPerLayer = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_turnsPerLayerText = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"Turns / layer est", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_turnsPerLayerText" )
+		self.lbl_turnsPerLayerText.Wrap( -1 )
+		bSizerTurnsPerLayer.Add( self.lbl_turnsPerLayerText, 0, wx.ALL, 5 )
+
+		bSizerTurnsPerLayer.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.lbl_turnsPerLayer = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"-", wx.DefaultPosition, wx.Size( 140,20 ), wx.ALIGN_RIGHT, u"lbl_turnsPerLayer" )
+		self.lbl_turnsPerLayer.Wrap( -1 )
+		bSizerTurnsPerLayer.Add( self.lbl_turnsPerLayer, 0, wx.ALL, 5 )
+
+		self.lbl_turnsPerLayerUnit = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"[turns]", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_turnsPerLayerUnit" )
+		self.lbl_turnsPerLayerUnit.Wrap( -1 )
+		bSizerTurnsPerLayer.Add( self.lbl_turnsPerLayerUnit, 0, wx.ALL, 5 )
+
+		sbSizer111.Add( bSizerTurnsPerLayer, 0, wx.EXPAND, 5 )
+
+		bSizerCopperLen = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_copperLengthText = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"Copper length total", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_copperLengthText" )
+		self.lbl_copperLengthText.Wrap( -1 )
+		bSizerCopperLen.Add( self.lbl_copperLengthText, 0, wx.ALL, 5 )
+
+		bSizerCopperLen.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.lbl_copperLength = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"-", wx.DefaultPosition, wx.Size( 140,20 ), wx.ALIGN_RIGHT, u"lbl_copperLength" )
+		self.lbl_copperLength.Wrap( -1 )
+		bSizerCopperLen.Add( self.lbl_copperLength, 0, wx.ALL, 5 )
+
+		self.lbl_copperLengthUnit = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"[m]", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_copperLengthUnit" )
+		self.lbl_copperLengthUnit.Wrap( -1 )
+		bSizerCopperLen.Add( self.lbl_copperLengthUnit, 0, wx.ALL, 5 )
+
+		sbSizer111.Add( bSizerCopperLen, 0, wx.EXPAND, 5 )
 
 		bSizer21312 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -1153,6 +1237,7 @@ class KMotorProGUI ( wx.Frame ):
 		self.m_cbPreset.Bind( wx.EVT_TEXT, self.on_cb_preset )
 		self.m_ctrlLayers.Bind( wx.EVT_SPINCTRLDOUBLE, self.on_nr_layers )
 		self.m_cbTP.Bind( wx.EVT_TEXT, self.on_cb_trmtype )
+		self.m_cbWindingMode.Bind( wx.EVT_TEXT, self.on_cb_winding_mode )
 		self.m_cbMagShape.Bind( wx.EVT_TEXT, self.on_cb_magnet_shape )
 		self.btn_load.Bind( wx.EVT_BUTTON, self.on_btn_load )
 		self.btn_save.Bind( wx.EVT_BUTTON, self.on_btn_save )
@@ -1175,6 +1260,8 @@ class KMotorProGUI ( wx.Frame ):
 	def on_nr_layers( self, event ):
 		event.Skip()
 	def on_cb_trmtype( self, event ):
+		event.Skip()
+	def on_cb_winding_mode( self, event ):
 		event.Skip()
 	def on_cb_magnet_shape( self, event ):
 		event.Skip()
