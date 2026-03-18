@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PLUGIN_DIR="$ROOT_DIR/release/com_github_itcrw_kmotor_pro"
+PLUGIN_DIR="$ROOT_DIR/kmotor_pro"
 DIST_DIR="$ROOT_DIR/dist"
 STAGE_DIR="$(mktemp -d /tmp/kmotor_pro_release_stage.XXXXXX)"
 
@@ -12,7 +12,7 @@ cleanup() {
 trap cleanup EXIT
 
 if [[ ! -f "$PLUGIN_DIR/metadata.json" ]]; then
-  echo "release tree missing: $PLUGIN_DIR" >&2
+  echo "plugin source tree missing: $PLUGIN_DIR" >&2
   exit 1
 fi
 
@@ -39,6 +39,9 @@ cp "$PLUGIN_DIR/kmotor_pro_solver.py" "$STAGE_DIR/plugins/"
 cp "$PLUGIN_DIR/kmotor_pro_persist.py" "$STAGE_DIR/plugins/"
 cp "$PLUGIN_DIR/kmotor_pro_24x24.png" "$STAGE_DIR/plugins/"
 cp "$PLUGIN_DIR/kmotor_pro_24x24.png" "$STAGE_DIR/resources/icon.png"
+cp "$PLUGIN_DIR/README.md" "$STAGE_DIR/plugins/"
+cp "$PLUGIN_DIR/app.png" "$STAGE_DIR/plugins/"
+cp "$PLUGIN_DIR/app2.png" "$STAGE_DIR/plugins/"
 
 python3 - <<'PY' "$PLUGIN_DIR/metadata.json" "$STAGE_DIR/metadata.json"
 import json
@@ -64,7 +67,7 @@ archive_metadata = {
     "name": data["name"],
     "description": description[:150],
     "description_full": description_full,
-    "identifier": "com.github.itcrw.kmotor-pro",
+    "identifier": data["identifier"],
     "type": "plugin",
     "author": {
         "name": data["author"]["name"],
