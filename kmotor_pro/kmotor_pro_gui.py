@@ -1005,6 +1005,24 @@ class KMotorProGUI ( wx.Frame ):
 
 		sbSizer111.Add( bSizerRpm12, 0, wx.EXPAND, 5 )
 
+		bSizerStallCurrent = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_stallCurrentText = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"Stall current est", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_stallCurrentText" )
+		self.lbl_stallCurrentText.Wrap( -1 )
+		bSizerStallCurrent.Add( self.lbl_stallCurrentText, 0, wx.ALL, 5 )
+
+		bSizerStallCurrent.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.lbl_stallCurrent = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"-", wx.DefaultPosition, wx.Size( 140,20 ), wx.ALIGN_RIGHT, u"lbl_stallCurrent" )
+		self.lbl_stallCurrent.Wrap( -1 )
+		bSizerStallCurrent.Add( self.lbl_stallCurrent, 0, wx.ALL, 5 )
+
+		self.lbl_stallCurrentUnit = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"[A]", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_stallCurrentUnit" )
+		self.lbl_stallCurrentUnit.Wrap( -1 )
+		bSizerStallCurrent.Add( self.lbl_stallCurrentUnit, 0, wx.ALL, 5 )
+
+		sbSizer111.Add( bSizerStallCurrent, 0, wx.EXPAND, 5 )
+
 		bSizerStallTorque = wx.BoxSizer( wx.HORIZONTAL )
 
 		self.lbl_stallTorqueText = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"Stall torque est", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_stallTorqueText" )

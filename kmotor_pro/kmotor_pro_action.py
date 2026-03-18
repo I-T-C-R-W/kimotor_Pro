@@ -1117,6 +1117,27 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             "stall_torque_est": stall_torque,
         }
 
+    def estimate_model_warnings(self, stats=None, motor_consts=None, perf_stats=None):
+        if stats is None:
+            stats = getattr(self, "last_stats", {}) or {}
+        if motor_consts is None:
+            motor_consts = self.estimate_motor_constants(stats)
+        if perf_stats is None:
+            perf_stats = self.estimate_performance_stats(stats, motor_consts)
+
+        warnings = []
+        if float(getattr(self, "magnet_b_est", 0.0)) <= 0.0:
+            warnings.append("B gap est <= 0")
+        if int(getattr(self, "magnet_poles", 0)) <= 0:
+            warnings.append("no magnet poles")
+        if float(stats.get("phase_r_temp", 0.0)) <= 0.0:
+            warnings.append("phase R <= 0")
+        if float(perf_stats.get("winding_factor_est", 0.0)) < 0.2:
+            warnings.append("low winding factor")
+        if float(perf_stats.get("stall_current_est", 0.0)) > 50.0:
+            warnings.append("high stall current")
+        return warnings
+
     def _clear_magnet_group(self):
         if getattr(self, "magnet_group", None):
             items = []
@@ -1559,6 +1580,8 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                 self.lbl_kw.SetLabel('%.3f' % perf_stats["winding_factor_est"])
             if hasattr(self, "lbl_rpm12"):
                 self.lbl_rpm12.SetLabel('%.0f' % perf_stats["rpm_12v_est"])
+            if hasattr(self, "lbl_stallCurrent"):
+                self.lbl_stallCurrent.SetLabel('%.2f' % perf_stats["stall_current_est"])
             if hasattr(self, "lbl_stallTorque"):
                 self.lbl_stallTorque.SetLabel('%.4f' % perf_stats["stall_torque_est"])
 
@@ -1579,10 +1602,12 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                 warnings.append(f"support holes skipped: {skipped}")
             if via_skipped > 0:
                 warnings.append(f"center vias skipped: {via_skipped}")
+            warnings.extend(self.estimate_model_warnings(stats, motor_consts, perf_stats))
             self.set_status("Finished" if not warnings else f"Finished ({', '.join(warnings)})")
             if hasattr(self, "m_txtStatus") and self.m_txtStatus:
                 self.m_txtStatus.SetValue(
                     "Finished\n"
+                    "Model: estimated, geometry + B gap assumption based\n"
                     f"Length total: {stats['total_length_mm']:.2f} mm\n"
                     f"Copper total: {stats['copper_length_total_m']:.3f} m\n"
                     f"Length / phase: {stats['phase_len_mm']:.2f} mm\n"
@@ -1595,6 +1620,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                     f"R rings total: {stats['ring_resistance_total']:.4f} ohm\n"
                     f"kw est: {perf_stats['winding_factor_est']:.3f}\n"
                     f"No-load RPM @ 12V est: {perf_stats['rpm_12v_est']:.0f}\n"
+                    f"Stall current est: {perf_stats['stall_current_est']:.2f} A\n"
                     f"Stall torque est: {perf_stats['stall_torque_est']:.4f} Nm"
                     + (f"\nWarnings: {', '.join(warnings)}" if warnings else "")
                 )
