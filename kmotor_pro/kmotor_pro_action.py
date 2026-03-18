@@ -1067,6 +1067,56 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         kv_est = 0.0 if ke_est <= 0.0 else (60.0 / (2.0 * math.pi * ke_est))
         return {"ke_est": ke_est, "kt_est": kt_est, "kv_est": kv_est}
 
+    def estimate_winding_factor(self):
+        try:
+            self.get_parameters()
+            self.get_magnet_parameters()
+        except Exception:
+            return 0.0
+
+        if self.phases <= 0 or self.n_slots <= 0 or self.magnet_poles <= 0:
+            return 0.0
+
+        q = self.n_slots / float(self.magnet_poles * self.phases)
+        if q <= 0.0:
+            return 0.0
+
+        slot_pitch_e = 2.0 * math.pi * self.magnet_pole_pairs / max(self.n_slots, 1)
+        coil_pitch_slots = max(self.n_loops, 1)
+        coil_pitch_e = coil_pitch_slots * slot_pitch_e
+
+        kd_num = math.sin(q * slot_pitch_e / 2.0)
+        kd_den = max(q * math.sin(slot_pitch_e / 2.0), 1e-9)
+        kd = abs(kd_num / kd_den)
+        kp = abs(math.sin(coil_pitch_e / 2.0))
+
+        if self.phases == 1:
+            kw = min(max(kp, 0.0), 1.0)
+        else:
+            kw = min(max(kd * kp, 0.0), 1.0)
+        return kw
+
+    def estimate_performance_stats(self, stats=None, motor_consts=None):
+        if stats is None:
+            stats = getattr(self, "last_stats", {}) or {}
+        if motor_consts is None:
+            motor_consts = self.estimate_motor_constants(stats)
+
+        kv_est = float(motor_consts.get("kv_est", 0.0))
+        kt_est = float(motor_consts.get("kt_est", 0.0))
+        phase_r = max(float(stats.get("phase_r_temp", 0.0)), 0.0)
+
+        rpm_12v = 12.0 * kv_est
+        stall_current = 0.0 if phase_r <= 0.0 else 12.0 / phase_r
+        stall_torque = kt_est * stall_current
+
+        return {
+            "winding_factor_est": self.estimate_winding_factor(),
+            "rpm_12v_est": rpm_12v,
+            "stall_current_est": stall_current,
+            "stall_torque_est": stall_torque,
+        }
+
     def _clear_magnet_group(self):
         if getattr(self, "magnet_group", None):
             items = []
@@ -1498,12 +1548,19 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             self.lbl_coilR.SetLabel('%.3f' % stats["coil_resistance_per_coil"])
             self.lbl_ringR.SetLabel('%.3f' % stats["ring_resistance_total"])
             motor_consts = self.estimate_motor_constants(stats)
+            perf_stats = self.estimate_performance_stats(stats, motor_consts)
             if hasattr(self, "lbl_ke"):
                 self.lbl_ke.SetLabel('%.4f' % motor_consts["ke_est"])
             if hasattr(self, "lbl_kt"):
                 self.lbl_kt.SetLabel('%.4f' % motor_consts["kt_est"])
             if hasattr(self, "lbl_kv"):
                 self.lbl_kv.SetLabel('%.1f' % motor_consts["kv_est"])
+            if hasattr(self, "lbl_kw"):
+                self.lbl_kw.SetLabel('%.3f' % perf_stats["winding_factor_est"])
+            if hasattr(self, "lbl_rpm12"):
+                self.lbl_rpm12.SetLabel('%.0f' % perf_stats["rpm_12v_est"])
+            if hasattr(self, "lbl_stallTorque"):
+                self.lbl_stallTorque.SetLabel('%.4f' % perf_stats["stall_torque_est"])
 
             self.do_silkscreen(self.r_coil_out + self.trk_w, self.r_coil_in, self.th0)
             if hasattr(self.board, 'BuildConnectivity'):
@@ -1535,7 +1592,10 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                     f"R total: {stats['total_resistance']:.4f} ohm\n"
                     f"R / phase: {stats['phase_r_temp']:.4f} ohm\n"
                     f"R / coil: {stats['coil_resistance_per_coil']:.4f} ohm\n"
-                    f"R rings total: {stats['ring_resistance_total']:.4f} ohm"
+                    f"R rings total: {stats['ring_resistance_total']:.4f} ohm\n"
+                    f"kw est: {perf_stats['winding_factor_est']:.3f}\n"
+                    f"No-load RPM @ 12V est: {perf_stats['rpm_12v_est']:.0f}\n"
+                    f"Stall torque est: {perf_stats['stall_torque_est']:.4f} Nm"
                     + (f"\nWarnings: {', '.join(warnings)}" if warnings else "")
                 )
         except Exception as e:

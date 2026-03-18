@@ -969,6 +969,60 @@ class KMotorProGUI ( wx.Frame ):
 
 		sbSizer111.Add( bSizerKv, 0, wx.EXPAND, 5 )
 
+		bSizerKw = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_kwText = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"Winding factor est", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_kwText" )
+		self.lbl_kwText.Wrap( -1 )
+		bSizerKw.Add( self.lbl_kwText, 0, wx.ALL, 5 )
+
+		bSizerKw.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.lbl_kw = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"-", wx.DefaultPosition, wx.Size( 140,20 ), wx.ALIGN_RIGHT, u"lbl_kw" )
+		self.lbl_kw.Wrap( -1 )
+		bSizerKw.Add( self.lbl_kw, 0, wx.ALL, 5 )
+
+		self.lbl_kwUnit = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"[-]", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_kwUnit" )
+		self.lbl_kwUnit.Wrap( -1 )
+		bSizerKw.Add( self.lbl_kwUnit, 0, wx.ALL, 5 )
+
+		sbSizer111.Add( bSizerKw, 0, wx.EXPAND, 5 )
+
+		bSizerRpm12 = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_rpm12Text = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"No-load RPM @ 12V est", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_rpm12Text" )
+		self.lbl_rpm12Text.Wrap( -1 )
+		bSizerRpm12.Add( self.lbl_rpm12Text, 0, wx.ALL, 5 )
+
+		bSizerRpm12.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.lbl_rpm12 = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"-", wx.DefaultPosition, wx.Size( 140,20 ), wx.ALIGN_RIGHT, u"lbl_rpm12" )
+		self.lbl_rpm12.Wrap( -1 )
+		bSizerRpm12.Add( self.lbl_rpm12, 0, wx.ALL, 5 )
+
+		self.lbl_rpm12Unit = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"[rpm]", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_rpm12Unit" )
+		self.lbl_rpm12Unit.Wrap( -1 )
+		bSizerRpm12.Add( self.lbl_rpm12Unit, 0, wx.ALL, 5 )
+
+		sbSizer111.Add( bSizerRpm12, 0, wx.EXPAND, 5 )
+
+		bSizerStallTorque = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_stallTorqueText = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"Stall torque est", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_stallTorqueText" )
+		self.lbl_stallTorqueText.Wrap( -1 )
+		bSizerStallTorque.Add( self.lbl_stallTorqueText, 0, wx.ALL, 5 )
+
+		bSizerStallTorque.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.lbl_stallTorque = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"-", wx.DefaultPosition, wx.Size( 140,20 ), wx.ALIGN_RIGHT, u"lbl_stallTorque" )
+		self.lbl_stallTorque.Wrap( -1 )
+		bSizerStallTorque.Add( self.lbl_stallTorque, 0, wx.ALL, 5 )
+
+		self.lbl_stallTorqueUnit = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"[Nm]", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_stallTorqueUnit" )
+		self.lbl_stallTorqueUnit.Wrap( -1 )
+		bSizerStallTorque.Add( self.lbl_stallTorqueUnit, 0, wx.ALL, 5 )
+
+		sbSizer111.Add( bSizerStallTorque, 0, wx.EXPAND, 5 )
+
 		sbSizer111.GetStaticBox().SetMinSize( wx.Size( 340,-1 ) )
 		bSizerMainRow.Add( sbSizer111, 1, wx.EXPAND|wx.ALL, 6 )
 
