@@ -27,9 +27,12 @@ class KMotorProGUI ( wx.Frame ):
 		bSizer1 = wx.BoxSizer( wx.VERTICAL )
 
 		bSizer5 = wx.BoxSizer( wx.VERTICAL )
+		self.m_notebookMain = wx.Notebook( self, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_panelStator = wx.Panel( self.m_notebookMain, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, wx.TAB_TRAVERSAL )
+		self.m_panelMagnet = wx.Panel( self.m_notebookMain, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, wx.TAB_TRAVERSAL )
 		bSizerMainRow = wx.BoxSizer( wx.HORIZONTAL )
 
-		sbSizer2 = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Mechanical" ), wx.VERTICAL )
+		sbSizer2 = wx.StaticBoxSizer( wx.StaticBox( self.m_panelStator, wx.ID_ANY, u"Mechanical" ), wx.VERTICAL )
 		sbMechBoard = wx.StaticBoxSizer( wx.StaticBox( sbSizer2.GetStaticBox(), wx.ID_ANY, u"Board / Coil" ), wx.VERTICAL )
 		sbMechMount = wx.StaticBoxSizer( wx.StaticBox( sbSizer2.GetStaticBox(), wx.ID_ANY, u"Mounting holes" ), wx.VERTICAL )
 		sbMechSupport = wx.StaticBoxSizer( wx.StaticBox( sbSizer2.GetStaticBox(), wx.ID_ANY, u"Support / Fill / Terminals" ), wx.VERTICAL )
@@ -269,7 +272,7 @@ class KMotorProGUI ( wx.Frame ):
 		sbSizer2.GetStaticBox().SetMinSize( wx.Size( 340,-1 ) )
 		bSizerMainRow.Add( sbSizer2, 1, wx.EXPAND|wx.ALL, 6 )
 
-		sbSizer1 = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Electrical" ), wx.VERTICAL )
+		sbSizer1 = wx.StaticBoxSizer( wx.StaticBox( self.m_panelStator, wx.ID_ANY, u"Electrical" ), wx.VERTICAL )
 		sbElecMotor = wx.StaticBoxSizer( wx.StaticBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Motor / Topology" ), wx.VERTICAL )
 		sbElecRouting = wx.StaticBoxSizer( wx.StaticBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"PCB / Routing" ), wx.VERTICAL )
 
@@ -296,7 +299,7 @@ class KMotorProGUI ( wx.Frame ):
 
 		bSizer2.Add( ( 0, 0), 1, wx.EXPAND, 5 )
 
-		self.m_ctrlSlots = SpinCtrlDoublePersist( sbSizer1.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 6, 60, 6.000000, 3, u"m_ctrlPoles" )
+		self.m_ctrlSlots = SpinCtrlDoublePersist( sbSizer1.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 1, 600, 6.000000, 1, u"m_ctrlPoles" )
 		self.m_ctrlSlots.SetDigits( 0 )
 		bSizer2.Add( self.m_ctrlSlots, 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.EXPAND, 5 )
 
@@ -718,7 +721,7 @@ class KMotorProGUI ( wx.Frame ):
 		sbSizer1.GetStaticBox().SetMinSize( wx.Size( 340,-1 ) )
 		bSizerMainRow.Add( sbSizer1, 1, wx.EXPAND|wx.ALL, 6 )
 
-		sbSizer111 = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"Physics / Stats" ), wx.VERTICAL )
+		sbSizer111 = wx.StaticBoxSizer( wx.StaticBox( self.m_panelStator, wx.ID_ANY, u"Physics / Stats" ), wx.VERTICAL )
 
 		bSizer2112 = wx.BoxSizer( wx.HORIZONTAL )
 
@@ -828,6 +831,60 @@ class KMotorProGUI ( wx.Frame ):
 
 		sbSizer111.Add( bSizerRingR, 0, wx.EXPAND, 5 )
 
+		bSizerKe = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_keText = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"Ke est", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_keText" )
+		self.lbl_keText.Wrap( -1 )
+		bSizerKe.Add( self.lbl_keText, 0, wx.ALL, 5 )
+
+		bSizerKe.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.lbl_ke = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"-", wx.DefaultPosition, wx.Size( 140,20 ), wx.ALIGN_RIGHT, u"lbl_ke" )
+		self.lbl_ke.Wrap( -1 )
+		bSizerKe.Add( self.lbl_ke, 0, wx.ALL, 5 )
+
+		self.lbl_keUnit = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"[V*s/rad]", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_keUnit" )
+		self.lbl_keUnit.Wrap( -1 )
+		bSizerKe.Add( self.lbl_keUnit, 0, wx.ALL, 5 )
+
+		sbSizer111.Add( bSizerKe, 0, wx.EXPAND, 5 )
+
+		bSizerKt = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_ktText = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"Kt est", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_ktText" )
+		self.lbl_ktText.Wrap( -1 )
+		bSizerKt.Add( self.lbl_ktText, 0, wx.ALL, 5 )
+
+		bSizerKt.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.lbl_kt = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"-", wx.DefaultPosition, wx.Size( 140,20 ), wx.ALIGN_RIGHT, u"lbl_kt" )
+		self.lbl_kt.Wrap( -1 )
+		bSizerKt.Add( self.lbl_kt, 0, wx.ALL, 5 )
+
+		self.lbl_ktUnit = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"[Nm/A]", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_ktUnit" )
+		self.lbl_ktUnit.Wrap( -1 )
+		bSizerKt.Add( self.lbl_ktUnit, 0, wx.ALL, 5 )
+
+		sbSizer111.Add( bSizerKt, 0, wx.EXPAND, 5 )
+
+		bSizerKv = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_kvText = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"Kv est", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_kvText" )
+		self.lbl_kvText.Wrap( -1 )
+		bSizerKv.Add( self.lbl_kvText, 0, wx.ALL, 5 )
+
+		bSizerKv.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.lbl_kv = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"-", wx.DefaultPosition, wx.Size( 140,20 ), wx.ALIGN_RIGHT, u"lbl_kv" )
+		self.lbl_kv.Wrap( -1 )
+		bSizerKv.Add( self.lbl_kv, 0, wx.ALL, 5 )
+
+		self.lbl_kvUnit = wx.StaticText( sbSizer111.GetStaticBox(), wx.ID_ANY, u"[rpm/V]", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_kvUnit" )
+		self.lbl_kvUnit.Wrap( -1 )
+		bSizerKv.Add( self.lbl_kvUnit, 0, wx.ALL, 5 )
+
+		sbSizer111.Add( bSizerKv, 0, wx.EXPAND, 5 )
+
 		sbSizer111.GetStaticBox().SetMinSize( wx.Size( 340,-1 ) )
 		bSizerMainRow.Add( sbSizer111, 1, wx.EXPAND|wx.ALL, 6 )
 
@@ -859,12 +916,18 @@ class KMotorProGUI ( wx.Frame ):
 		self.btn_clear.Enable( False )
 		self.btn_clear.Hide()
 
+		self.btn_generate_magnet = wx.Button( self, wx.ID_ANY, u"Generate Magnet PCB", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"btn_generate_magnet" )
+		self.btn_generate_magnet.SetForegroundColour( wx.Colour(255,255,255) )
+		self.btn_generate_magnet.SetBackgroundColour( wx.Colour(25,118,210) )
+		self.btn_generate_magnet.SetMinSize( wx.Size(170, 40) )
+
 		self.btn_ok = wx.Button( self, wx.ID_OK, u"Generate", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"btn_ok" )
 		self.btn_ok.SetForegroundColour( wx.Colour(255,255,255) )
 		self.btn_ok.SetBackgroundColour( wx.Colour(46,125,50) )
 		self.btn_ok.SetMinSize( wx.Size(130, 40) )
 
 		bSizerBottomRight.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+		bSizerBottomRight.Add( self.btn_generate_magnet, 0, wx.ALIGN_CENTER|wx.BOTTOM, 8 )
 		bSizerBottomRight.Add( self.btn_ok, 0, wx.ALIGN_CENTER|wx.ALL, 0 )
 		bSizerBottomRight.Add( ( 0, 0), 1, wx.EXPAND, 5 )
 
@@ -873,6 +936,166 @@ class KMotorProGUI ( wx.Frame ):
 		bSizer3.Add( bSizerBottomRight, 0, wx.EXPAND|wx.LEFT, 8 )
 
 		bSizer5.Add( bSizer3, 0, wx.EXPAND|wx.TOP, 5 )
+
+		bSizerPanelStator = wx.BoxSizer( wx.VERTICAL )
+		bSizerPanelStator.Add( bSizerMainRow, 1, wx.EXPAND|wx.ALL, 0 )
+		self.m_panelStator.SetSizer( bSizerPanelStator )
+		self.m_panelStator.Layout()
+
+		bSizerPanelMagnet = wx.BoxSizer( wx.VERTICAL )
+
+		sbSizerMagnet = wx.StaticBoxSizer( wx.StaticBox( self.m_panelMagnet, wx.ID_ANY, u"Magnet PCB" ), wx.VERTICAL )
+		sbMagGeom = wx.StaticBoxSizer( wx.StaticBox( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"Magnet Geometry" ), wx.VERTICAL )
+		sbMagPlacement = wx.StaticBoxSizer( wx.StaticBox( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"Ring / Placement" ), wx.VERTICAL )
+		sbMagOptional = wx.StaticBoxSizer( wx.StaticBox( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"Optional" ), wx.VERTICAL )
+		sbMagInfo = wx.StaticBoxSizer( wx.StaticBox( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"Validation Preview" ), wx.VERTICAL )
+
+		bSizerMagShape = wx.BoxSizer( wx.HORIZONTAL )
+		self.lbl_magShape = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"Magnet shape:", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magShape.Wrap( -1 )
+		bSizerMagShape.Add( self.lbl_magShape, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		bSizerMagShape.Add( ( 0, 0 ), 1, wx.EXPAND, 5 )
+		m_cbMagShapeChoices = [ u"Round", u"Rect" ]
+		self.m_cbMagShape = wx.ComboBox( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"Round", wx.DefaultPosition, wx.DefaultSize, m_cbMagShapeChoices, wx.CB_DROPDOWN|wx.CB_READONLY, wx.DefaultValidator, u"m_cbMagShape" )
+		self.m_cbMagShape.SetSelection( 0 )
+		bSizerMagShape.Add( self.m_cbMagShape, 1, wx.ALL|wx.EXPAND, 5 )
+		sbMagGeom.Add( bSizerMagShape, 0, wx.EXPAND, 5 )
+
+		bSizerMagDia = wx.BoxSizer( wx.HORIZONTAL )
+		self.lbl_magDia = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"Magnet dia:", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magDia.Wrap( -1 )
+		bSizerMagDia.Add( self.lbl_magDia, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		bSizerMagDia.Add( ( 0, 0 ), 1, wx.EXPAND, 5 )
+		self.m_ctrlMagDia = SpinCtrlDoublePersist( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 0.1, 200, 8.0, 0.1, u"m_ctrlMagDia" )
+		self.m_ctrlMagDia.SetDigits( 2 )
+		bSizerMagDia.Add( self.m_ctrlMagDia, 1, wx.ALL|wx.EXPAND, 5 )
+		self.lbl_magDiaUnit = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"[mm]", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magDiaUnit.Wrap( -1 )
+		bSizerMagDia.Add( self.lbl_magDiaUnit, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		sbMagGeom.Add( bSizerMagDia, 0, wx.EXPAND, 5 )
+
+		bSizerMagWidth = wx.BoxSizer( wx.HORIZONTAL )
+		self.lbl_magWidth = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"Magnet width (B):", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magWidth.Wrap( -1 )
+		bSizerMagWidth.Add( self.lbl_magWidth, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		bSizerMagWidth.Add( ( 0, 0 ), 1, wx.EXPAND, 5 )
+		self.m_ctrlMagWidth = SpinCtrlDoublePersist( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 0.1, 200, 10.0, 0.1, u"m_ctrlMagWidth" )
+		self.m_ctrlMagWidth.SetDigits( 2 )
+		bSizerMagWidth.Add( self.m_ctrlMagWidth, 1, wx.ALL|wx.EXPAND, 5 )
+		self.lbl_magWidthUnit = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"[mm]", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magWidthUnit.Wrap( -1 )
+		bSizerMagWidth.Add( self.lbl_magWidthUnit, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		sbMagGeom.Add( bSizerMagWidth, 0, wx.EXPAND, 5 )
+
+		bSizerMagHeight = wx.BoxSizer( wx.HORIZONTAL )
+		self.lbl_magHeight = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"Magnet height (H):", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magHeight.Wrap( -1 )
+		bSizerMagHeight.Add( self.lbl_magHeight, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		bSizerMagHeight.Add( ( 0, 0 ), 1, wx.EXPAND, 5 )
+		self.m_ctrlMagHeight = SpinCtrlDoublePersist( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 0.1, 200, 5.0, 0.1, u"m_ctrlMagHeight" )
+		self.m_ctrlMagHeight.SetDigits( 2 )
+		bSizerMagHeight.Add( self.m_ctrlMagHeight, 1, wx.ALL|wx.EXPAND, 5 )
+		self.lbl_magHeightUnit = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"[mm]", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magHeightUnit.Wrap( -1 )
+		bSizerMagHeight.Add( self.lbl_magHeightUnit, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		sbMagGeom.Add( bSizerMagHeight, 0, wx.EXPAND, 5 )
+
+		bSizerMagLength = wx.BoxSizer( wx.HORIZONTAL )
+		self.lbl_magLength = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"Magnet length (L, optional):", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magLength.Wrap( -1 )
+		bSizerMagLength.Add( self.lbl_magLength, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		bSizerMagLength.Add( ( 0, 0 ), 1, wx.EXPAND, 5 )
+		self.m_ctrlMagLength = SpinCtrlDoublePersist( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 0.0, 500, 0.0, 0.1, u"m_ctrlMagLength" )
+		self.m_ctrlMagLength.SetDigits( 2 )
+		bSizerMagLength.Add( self.m_ctrlMagLength, 1, wx.ALL|wx.EXPAND, 5 )
+		self.lbl_magLengthUnit = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"[mm]", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magLengthUnit.Wrap( -1 )
+		bSizerMagLength.Add( self.lbl_magLengthUnit, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		sbMagGeom.Add( bSizerMagLength, 0, wx.EXPAND, 5 )
+
+		bSizerMagRingDia = wx.BoxSizer( wx.HORIZONTAL )
+		self.lbl_magRingDia = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"Magnet ring dia:", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magRingDia.Wrap( -1 )
+		bSizerMagRingDia.Add( self.lbl_magRingDia, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		bSizerMagRingDia.Add( ( 0, 0 ), 1, wx.EXPAND, 5 )
+		self.m_ctrlMagRingDia = SpinCtrlDoublePersist( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 1.0, 9999, 90.0, 0.1, u"m_ctrlMagRingDia" )
+		self.m_ctrlMagRingDia.SetDigits( 2 )
+		bSizerMagRingDia.Add( self.m_ctrlMagRingDia, 1, wx.ALL|wx.EXPAND, 5 )
+		self.lbl_magRingDiaUnit = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"[mm]", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magRingDiaUnit.Wrap( -1 )
+		bSizerMagRingDia.Add( self.lbl_magRingDiaUnit, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		sbMagPlacement.Add( bSizerMagRingDia, 0, wx.EXPAND, 5 )
+
+		bSizerMagPolePairs = wx.BoxSizer( wx.HORIZONTAL )
+		self.lbl_magPolePairs = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"Pole pairs:", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magPolePairs.Wrap( -1 )
+		bSizerMagPolePairs.Add( self.lbl_magPolePairs, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		bSizerMagPolePairs.Add( ( 0, 0 ), 1, wx.EXPAND, 5 )
+		self.m_ctrlMagPolePairs = SpinCtrlDoublePersist( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 1, 500, 30, 1, u"m_ctrlMagPolePairs" )
+		self.m_ctrlMagPolePairs.SetDigits( 0 )
+		bSizerMagPolePairs.Add( self.m_ctrlMagPolePairs, 1, wx.ALL|wx.EXPAND, 5 )
+		sbMagPlacement.Add( bSizerMagPolePairs, 0, wx.EXPAND, 5 )
+
+		bSizerMagRot = wx.BoxSizer( wx.HORIZONTAL )
+		self.lbl_magRotation = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"Rotation offset:", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magRotation.Wrap( -1 )
+		bSizerMagRot.Add( self.lbl_magRotation, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		bSizerMagRot.Add( ( 0, 0 ), 1, wx.EXPAND, 5 )
+		self.m_ctrlMagRotation = SpinCtrlDoublePersist( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, -180.0, 180.0, 0.0, 0.1, u"m_ctrlMagRotation" )
+		self.m_ctrlMagRotation.SetDigits( 2 )
+		bSizerMagRot.Add( self.m_ctrlMagRotation, 1, wx.ALL|wx.EXPAND, 5 )
+		self.lbl_magRotationUnit = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"[deg]", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magRotationUnit.Wrap( -1 )
+		bSizerMagRot.Add( self.lbl_magRotationUnit, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		sbMagPlacement.Add( bSizerMagRot, 0, wx.EXPAND, 5 )
+
+		bSizerMagGap = wx.BoxSizer( wx.HORIZONTAL )
+		self.lbl_magGap = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"Magnet gap (optional):", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magGap.Wrap( -1 )
+		bSizerMagGap.Add( self.lbl_magGap, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		bSizerMagGap.Add( ( 0, 0 ), 1, wx.EXPAND, 5 )
+		self.m_ctrlMagGap = SpinCtrlDoublePersist( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 0.0, 50.0, 0.5, 0.1, u"m_ctrlMagGap" )
+		self.m_ctrlMagGap.SetDigits( 2 )
+		bSizerMagGap.Add( self.m_ctrlMagGap, 1, wx.ALL|wx.EXPAND, 5 )
+		self.lbl_magGapUnit = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"[mm]", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magGapUnit.Wrap( -1 )
+		bSizerMagGap.Add( self.lbl_magGapUnit, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		sbMagOptional.Add( bSizerMagGap, 0, wx.EXPAND, 5 )
+
+		bSizerMagKeepout = wx.BoxSizer( wx.HORIZONTAL )
+		self.lbl_magKeepout = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"Magnet keepout (optional):", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magKeepout.Wrap( -1 )
+		bSizerMagKeepout.Add( self.lbl_magKeepout, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		bSizerMagKeepout.Add( ( 0, 0 ), 1, wx.EXPAND, 5 )
+		self.m_ctrlMagKeepout = SpinCtrlDoublePersist( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 0.0, 50.0, 0.0, 0.1, u"m_ctrlMagKeepout" )
+		self.m_ctrlMagKeepout.SetDigits( 2 )
+		bSizerMagKeepout.Add( self.m_ctrlMagKeepout, 1, wx.ALL|wx.EXPAND, 5 )
+		self.lbl_magKeepoutUnit = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"[mm]", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magKeepoutUnit.Wrap( -1 )
+		bSizerMagKeepout.Add( self.lbl_magKeepoutUnit, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		sbMagOptional.Add( bSizerMagKeepout, 0, wx.EXPAND, 5 )
+
+		bSizerMagBest = wx.BoxSizer( wx.HORIZONTAL )
+		self.lbl_magBest = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"B gap est:", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magBest.Wrap( -1 )
+		bSizerMagBest.Add( self.lbl_magBest, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		bSizerMagBest.Add( ( 0, 0 ), 1, wx.EXPAND, 5 )
+		self.m_ctrlMagBest = SpinCtrlDoublePersist( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 0.01, 3.0, 0.60, 0.01, u"m_ctrlMagBest" )
+		self.m_ctrlMagBest.SetDigits( 2 )
+		bSizerMagBest.Add( self.m_ctrlMagBest, 1, wx.ALL|wx.EXPAND, 5 )
+		self.lbl_magBestUnit = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"[T]", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lbl_magBestUnit.Wrap( -1 )
+		bSizerMagBest.Add( self.lbl_magBestUnit, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+		sbMagOptional.Add( bSizerMagBest, 0, wx.EXPAND, 5 )
+
+		self.lblMagnetSummary = wx.StaticText( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, u"Configure magnet geometry and use Generate Magnet PCB for validation.", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.lblMagnetSummary.Wrap( 520 )
+		sbMagInfo.Add( self.lblMagnetSummary, 0, wx.ALL|wx.EXPAND, 5 )
+
+		sbSizerMagnet.Add( sbMagGeom, 0, wx.EXPAND|wx.ALL, 4 )
+		sbSizerMagnet.Add( sbMagPlacement, 0, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 4 )
+		sbSizerMagnet.Add( sbMagOptional, 0, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 4 )
+		sbSizerMagnet.Add( sbMagInfo, 1, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 4 )
 
 		def _style_staticbox(box):
 			if not box:
@@ -885,7 +1108,7 @@ class KMotorProGUI ( wx.Frame ):
 			except Exception:
 				pass
 
-		for _sb in (sbSizer2, sbSizer1, sbSizer111, sbSizerStatus):
+		for _sb in (sbSizer2, sbSizer1, sbSizer111, sbSizerMagnet, sbSizerStatus):
 			_style_staticbox(_sb.GetStaticBox())
 
 		_normal_font = self.GetFont()
@@ -899,10 +1122,16 @@ class KMotorProGUI ( wx.Frame ):
 						pass
 				_reset_desc_font(_child)
 
-		for _sb in (sbSizer2, sbSizer1, sbSizer111, sbSizerStatus):
+		for _sb in (sbSizer2, sbSizer1, sbSizer111, sbSizerMagnet, sbSizerStatus):
 			_reset_desc_font(_sb.GetStaticBox())
 
-		bSizer5.Insert( 0, bSizerMainRow, 1, wx.EXPAND|wx.TOP, 8 )
+		bSizerPanelMagnet.Add( sbSizerMagnet, 1, wx.EXPAND|wx.ALL, 6 )
+		self.m_panelMagnet.SetSizer( bSizerPanelMagnet )
+		self.m_panelMagnet.Layout()
+
+		self.m_notebookMain.AddPage( self.m_panelStator, u"Stator PCB", True )
+		self.m_notebookMain.AddPage( self.m_panelMagnet, u"Magnet PCB", False )
+		bSizer5.Insert( 0, self.m_notebookMain, 1, wx.EXPAND|wx.TOP, 8 )
 		bSizer1.Add( bSizer5, 1, wx.EXPAND|wx.LEFT|wx.RIGHT, 5 )
 
 		self.SetSizer( bSizer1 )
@@ -920,9 +1149,11 @@ class KMotorProGUI ( wx.Frame ):
 		self.m_ctrlLayers.Bind( wx.EVT_SPINCTRLDOUBLE, self.on_nr_layers )
 		self.m_cbTP.Bind( wx.EVT_TEXT, self.on_cb_trmtype )
 		self.m_termSize.Bind( wx.EVT_TEXT, self.on_cb_connections )
+		self.m_cbMagShape.Bind( wx.EVT_TEXT, self.on_cb_magnet_shape )
 		self.btn_load.Bind( wx.EVT_BUTTON, self.on_btn_load )
 		self.btn_save.Bind( wx.EVT_BUTTON, self.on_btn_save )
 		self.btn_clear.Bind( wx.EVT_BUTTON, self.on_btn_clear )
+		self.btn_generate_magnet.Bind( wx.EVT_BUTTON, self.on_btn_generate_magnet )
 		self.btn_ok.Bind( wx.EVT_BUTTON, self.on_btn_generate )
 
 	def __del__( self ):
@@ -942,11 +1173,15 @@ class KMotorProGUI ( wx.Frame ):
 		event.Skip()
 	def on_cb_trmtype( self, event ):
 		event.Skip()
+	def on_cb_magnet_shape( self, event ):
+		event.Skip()
 	def on_btn_load( self, event ):
 		event.Skip()
 	def on_btn_save( self, event ):
 		event.Skip()
 	def on_btn_clear( self, event ):
+		event.Skip()
+	def on_btn_generate_magnet( self, event ):
 		event.Skip()
 	def on_btn_generate( self, event ):
 		event.Skip()

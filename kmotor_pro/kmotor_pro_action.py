@@ -8,6 +8,7 @@ import shutil
 import numpy as np
 import math
 import json
+import re
 import traceback
 import itertools
 from datetime import datetime
@@ -125,6 +126,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         self.init_nets()
         self.on_cb_outline(None)
         self.on_cb_trmtype(None)
+        self.on_cb_magnet_shape(None)
         self.set_status("Ready")
     
     def eda_angle(self,angle):
@@ -296,6 +298,22 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         ca = math.cos(angle)
         sa = math.sin(angle)
         return (x * ca - y * sa, x * sa + y * ca)
+
+    def _rotate_about_xy(self, xy, center_xy, angle):
+        x, y = xy
+        cx, cy = center_xy
+        xr, yr = self._rotate_xy((x - cx, y - cy), angle)
+        return (xr + cx, yr + cy)
+
+    def _offset_xy(self, xy, origin_xy):
+        return (xy[0] + origin_xy[0], xy[1] + origin_xy[1])
+
+    def _get_board_span(self):
+        return 2.0 * float(self.r_out)
+
+    def _get_magnet_board_origin(self):
+        span = self._get_board_span()
+        return (span * 1.1, 0.0)
 
     def _get_pcb_text_position(self, text_size):
         margin = max(2.0 * text_size, 1.2 * self.SCALE)
@@ -618,6 +636,45 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         self.board.Add(txt)
         return txt
 
+    def _add_grouped_silk_segment(self, group, start_xy, end_xy, width=None):
+        seg = pcbnew.PCB_SHAPE(self.board, pcbnew.SHAPE_T_SEGMENT)
+        seg.SetStart(self._as_point(start_xy[0], start_xy[1]))
+        seg.SetEnd(self._as_point(end_xy[0], end_xy[1]))
+        seg.SetLayer(pcbnew.F_SilkS)
+        seg.SetWidth(int(width if width is not None else max(1, 0.127 * self.SCALE)))
+        self.board.Add(seg)
+        if group is not None:
+            group.AddItem(seg)
+        return seg
+
+    def _add_grouped_silk_circle(self, group, center_xy, radius, width=None):
+        circle = pcbnew.PCB_SHAPE(self.board)
+        circle.SetShape(pcbnew.SHAPE_T_CIRCLE)
+        circle.SetFilled(False)
+        circle.SetStart(self._as_point(center_xy[0], center_xy[1]))
+        circle.SetEnd(self._as_point(center_xy[0] + radius, center_xy[1]))
+        circle.SetCenter(self._as_point(center_xy[0], center_xy[1]))
+        circle.SetLayer(pcbnew.F_SilkS)
+        circle.SetWidth(int(width if width is not None else max(1, 0.127 * self.SCALE)))
+        self.board.Add(circle)
+        if group is not None:
+            group.AddItem(circle)
+        return circle
+
+    def _add_grouped_edge_circle(self, group, center_xy, radius, width=None):
+        circle = pcbnew.PCB_SHAPE(self.board)
+        circle.SetShape(pcbnew.SHAPE_T_CIRCLE)
+        circle.SetFilled(False)
+        circle.SetStart(self._as_point(center_xy[0], center_xy[1]))
+        circle.SetEnd(self._as_point(center_xy[0] + radius, center_xy[1]))
+        circle.SetCenter(self._as_point(center_xy[0], center_xy[1]))
+        circle.SetLayer(pcbnew.Edge_Cuts)
+        circle.SetWidth(int(width if width is not None else max(1, 0.09 * self.SCALE)))
+        self.board.Add(circle)
+        if group is not None:
+            group.AddItem(circle)
+        return circle
+
     def get_parameters(self):
         self.outline = self.m_cbOutline.GetStringSelection()
         if self.outline=="Circle":
@@ -743,6 +800,392 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         if self.n_slots % self.phases != 0:
             errors.append(f"n_slots ({self.n_slots}) muss durch phases ({self.phases}) teilbar sein.")
         return errors
+
+    def get_magnet_parameters(self):
+        self.magnet_shape = self.m_cbMagShape.GetStringSelection().lower()
+        self.magnet_dia = float(self.m_ctrlMagDia.GetValue()) * self.SCALE
+        self.magnet_width = float(self.m_ctrlMagWidth.GetValue()) * self.SCALE
+        self.magnet_height = float(self.m_ctrlMagHeight.GetValue()) * self.SCALE
+        self.magnet_length = float(self.m_ctrlMagLength.GetValue()) * self.SCALE
+        self.magnet_ring_dia = float(self.m_ctrlMagRingDia.GetValue()) * self.SCALE
+        self.magnet_pole_pairs = int(self.m_ctrlMagPolePairs.GetValue())
+        self.magnet_gap = float(self.m_ctrlMagGap.GetValue()) * self.SCALE
+        self.magnet_keepout = float(self.m_ctrlMagKeepout.GetValue()) * self.SCALE
+        self.magnet_rotation = float(self.m_ctrlMagRotation.GetValue())
+        self.magnet_b_est = float(self.m_ctrlMagBest.GetValue()) if hasattr(self, "m_ctrlMagBest") else 0.60
+        self.magnet_poles = max(self.magnet_pole_pairs * 2, 0)
+
+    def validate_magnet_parameters(self):
+        self.get_magnet_parameters()
+        errors = []
+        warnings = []
+
+        if self.magnet_pole_pairs <= 0:
+            errors.append("Pole pairs must be > 0.")
+        if self.magnet_ring_dia <= 0:
+            errors.append("Magnet ring dia must be > 0.")
+
+        if self.magnet_shape == "round":
+            if self.magnet_dia <= 0:
+                errors.append("Magnet dia must be > 0 for round magnets.")
+            magnet_span = self.magnet_dia
+            radial_span = self.magnet_dia
+        else:
+            if self.magnet_width <= 0 or self.magnet_height <= 0:
+                errors.append("Magnet width and height must be > 0 for rectangular magnets.")
+            magnet_span = self.magnet_width
+            radial_span = self.magnet_height
+
+        if errors:
+            return errors, warnings
+
+        radius = self.magnet_ring_dia * 0.5
+        circumference = 2.0 * math.pi * radius
+        required_arc = self.magnet_poles * max(magnet_span + self.magnet_gap + self.magnet_keepout, 0.0)
+        pole_pitch_arc = circumference / max(self.magnet_poles, 1)
+        if required_arc > circumference:
+            errors.append(
+                "Magnets do not fit on the selected ring diameter. "
+                f"Required arc {required_arc / self.SCALE:.2f} mm > circumference {circumference / self.SCALE:.2f} mm."
+            )
+        if (magnet_span + self.magnet_gap + self.magnet_keepout) > pole_pitch_arc:
+            errors.append(
+                "Single magnet pitch is too large for the selected pole count. "
+                f"Needed { (magnet_span + self.magnet_gap + self.magnet_keepout) / self.SCALE:.2f} mm > "
+                f"available { pole_pitch_arc / self.SCALE:.2f} mm."
+            )
+
+        inner_edge = radius - (0.5 * radial_span) - self.magnet_keepout
+        outer_edge = radius + (0.5 * radial_span) + self.magnet_keepout
+        if inner_edge <= float(self.r_in):
+            errors.append(
+                f"Magnet ring intersects shaft bore region ({inner_edge / self.SCALE:.2f} mm <= {float(self.r_in) / self.SCALE:.2f} mm)."
+            )
+        if outer_edge >= float(self.r_out):
+            errors.append(
+                f"Magnet ring exceeds safe board radius ({outer_edge / self.SCALE:.2f} mm >= {float(self.r_out) / self.SCALE:.2f} mm)."
+            )
+
+        clearance_radius = 0.5 * math.hypot(magnet_span, radial_span) + self.magnet_keepout
+        for hx, hy, hr, label in self._iter_magnet_clearance_targets():
+            dist = math.hypot(hx, hy)
+            if abs(dist - radius) <= (clearance_radius + hr):
+                warnings.append(
+                    f"Magnet ring is close to {label} (radial delta {abs(dist - radius) / self.SCALE:.2f} mm)."
+                )
+
+        if self.magnet_ring_dia >= float(self.r_out) * 2.0:
+            warnings.append("Magnet ring dia is at or outside board size.")
+        if self.magnet_ring_dia <= float(self.r_in) * 2.0:
+            warnings.append("Magnet ring dia is close to or inside the shaft bore region.")
+
+        return errors, warnings
+
+    def _update_magnet_summary(self, text):
+        if hasattr(self, "lblMagnetSummary") and self.lblMagnetSummary:
+            self.lblMagnetSummary.SetLabel(text)
+            self.lblMagnetSummary.Wrap(520)
+            self.lblMagnetSummary.GetParent().Layout()
+
+    def _get_mounting_hole_dia(self):
+        fp_name = self.mhole_db.get(self.mhs or "", "")
+        if not fp_name:
+            return 0.0
+        m = re.search(r"MountingHole_([0-9.]+)mm", fp_name)
+        if not m:
+            return 0.0
+        try:
+            return float(m.group(1)) * self.SCALE
+        except ValueError:
+            return 0.0
+
+    def _iter_magnet_clearance_targets(self):
+        targets = []
+        mh_dia = self._get_mounting_hole_dia()
+        mh_radius = 0.5 * mh_dia if mh_dia > 0 else 0.0
+
+        if self.n_mh_out > 0 and self.r_mh_out > 0:
+            radius = float(self.r_mh_out)
+            if self.n_edges > 0:
+                radius /= max(math.cos(math.pi / self.n_edges), 1e-6)
+            th0 = 2 * math.pi / self.n_mh_out
+            for i in range(self.n_mh_out):
+                angle = th0 * i + th0 / 2.0
+                targets.append((radius * math.cos(angle), radius * math.sin(angle), mh_radius, "outer mounting holes"))
+
+        if self.n_mh_in > 0 and self.r_mh_in > 0:
+            th0 = 2 * math.pi / self.n_mh_in
+            for i in range(self.n_mh_in):
+                angle = th0 * i + th0 / 2.0
+                radius = float(self.r_mh_in)
+                targets.append((radius * math.cos(angle), radius * math.sin(angle), mh_radius, "inner mounting holes"))
+
+        if self.n_edges == 4 and self.corner_hole_offset > 0 and self.corner_hole_dia > 0:
+            for x, y, _angle, dia in self._iter_outer_mount_points():
+                targets.append((x, y, 0.5 * dia, "corner alignment holes"))
+
+        return targets
+
+    def estimate_motor_constants(self, stats=None):
+        if stats is None:
+            stats = getattr(self, "last_stats", None)
+        try:
+            self.get_parameters()
+            self.get_magnet_parameters()
+        except Exception:
+            return {"ke_est": 0.0, "kt_est": 0.0, "kv_est": 0.0}
+
+        if self.phases <= 0 or self.n_loops <= 0:
+            return {"ke_est": 0.0, "kt_est": 0.0, "kv_est": 0.0}
+
+        radius_m = ((float(self.r_coil_in) + float(self.r_coil_out)) * 0.5) / self.SCALE / 1000.0
+        radial_span_m = max(float(self.r_coil_out - self.r_coil_in), 0.0) / self.SCALE / 1000.0
+        turns_series = max((self.n_slots / max(self.phases, 1)) * self.n_loops, 1.0)
+        b_est = max(float(getattr(self, "magnet_b_est", 0.60)), 0.0)
+
+        if radius_m <= 0.0 or radial_span_m <= 0.0 or b_est <= 0.0:
+            return {"ke_est": 0.0, "kt_est": 0.0, "kv_est": 0.0}
+
+        # First-order axial/radial PCB motor estimate:
+        # E = B * l * v, v = omega * r, two active radial sides per turn.
+        ke_est = 2.0 * b_est * radial_span_m * turns_series * radius_m
+        kt_est = ke_est
+        kv_est = 0.0 if ke_est <= 0.0 else (60.0 / (2.0 * math.pi * ke_est))
+        return {"ke_est": ke_est, "kt_est": kt_est, "kv_est": kv_est}
+
+    def _clear_magnet_group(self):
+        if getattr(self, "magnet_group", None):
+            items = []
+            try:
+                items = list(self.magnet_group.GetItems())
+            except Exception:
+                items = []
+            for item in items:
+                try:
+                    self.board.RemoveNative(item)
+                except Exception:
+                    try:
+                        self.board.Remove(item)
+                    except Exception:
+                        pass
+            try:
+                self.magnet_group.RemoveAll()
+            except Exception:
+                pass
+            try:
+                self.board.Remove(self.magnet_group)
+            except Exception:
+                pass
+            self.magnet_group = None
+
+    def _create_magnet_group(self):
+        self._clear_magnet_group()
+        self.magnet_group = pcbnew.PCB_GROUP(self.board)
+        self.magnet_group.SetName("magnet_pcb")
+        self.board.Add(self.magnet_group)
+        return self.magnet_group
+
+    def _add_mounting_hole_fp_at(self, group, center_xy, fp_lib, fp_name, ref, net=None):
+        m = pcbnew.FootprintLoad(fp_lib, fp_name)
+        if m is None:
+            return None
+        m.Reference().SetVisible(False)
+        m.Value().SetVisible(False)
+        m.SetReference(ref)
+        m.SetPosition(self._as_point(center_xy[0], center_xy[1]))
+        if net is not None:
+            for pad in m.Pads():
+                pad.SetNet(net)
+        self.board.Add(m)
+        if group is not None:
+            group.AddItem(m)
+        return m
+
+    def _iter_corner_points_for_origin(self, origin_xy):
+        if self.n_edges == 4 and self.corner_hole_offset > 0:
+            max_x = float(self.r_out)
+            max_y = float(self.r_out)
+            off = float(self.corner_hole_offset)
+            dia = max(float(self.corner_hole_dia), 0.0)
+            d = off / math.sqrt(2.0)
+            pts = [
+                ( origin_xy[0] + max_x - d, origin_xy[1] + max_y - d, math.radians(45.0), dia),
+                ( origin_xy[0] - max_x + d, origin_xy[1] + max_y - d, math.radians(135.0), dia),
+                ( origin_xy[0] - max_x + d, origin_xy[1] - max_y + d, math.radians(225.0), dia),
+                ( origin_xy[0] + max_x - d, origin_xy[1] - max_y + d, math.radians(315.0), dia),
+            ]
+            return pts[:max(0, min(len(pts), int(self.corner_hole_count)))]
+        return []
+
+    def _add_linear_hole_scale_at(self, group, center_xy, radial_angle, hole_radius, origin_xy):
+        cx, cy = center_xy
+        axis_dir = np.array([math.cos(radial_angle), math.sin(radial_angle)])
+        perp_dir = np.array([-math.sin(radial_angle), math.cos(radial_angle)])
+        inward = -perp_dir
+        step_deg = max(0.1, float(getattr(self, "corner_scale_step_deg", 1.0)))
+        angle_span = float(getattr(self, "corner_scale_span_deg", 5.0))
+        hole_count = max(3, int(round((2.0 * angle_span) / step_deg)) + 1)
+        hole_angles = np.linspace(
+            radial_angle - math.radians(angle_span),
+            radial_angle + math.radians(angle_span),
+            hole_count,
+        )
+        arc_radius = math.hypot(cx - origin_xy[0], cy - origin_xy[1])
+        for idx, angle in enumerate(hole_angles):
+            hc = (
+                origin_xy[0] + arc_radius * math.cos(angle),
+                origin_xy[1] + arc_radius * math.sin(angle),
+            )
+            fp = self._add_npth_hole_at(hc, hole_radius, f"{int(origin_xy[0])}_{int(origin_xy[1])}_{idx}")
+            if group is not None and fp is not None:
+                group.AddItem(fp)
+
+        helper_center = np.array([cx, cy]) + inward * (hole_radius + 0.25 * self.SCALE)
+        helper_half_len = max(1.2 * self.SCALE, 0.8 * hole_radius)
+        p0 = tuple(helper_center - axis_dir * helper_half_len)
+        p1 = tuple(helper_center + axis_dir * helper_half_len)
+        self._add_grouped_silk_segment(group, p0, p1, width=max(1, 0.10 * self.SCALE))
+
+        def add_rotated_line_block(step_deg_local, span_deg_local, tick_len, width):
+            count = max(1, int(round(span_deg_local / step_deg_local)))
+            base_anchor = tuple(helper_center)
+            base_q0 = base_anchor
+            base_q1 = tuple(helper_center + inward * tick_len)
+            for idx in range(-count, count + 1):
+                delta = math.radians(idx * step_deg_local)
+                q0 = self._rotate_about_xy(base_q0, origin_xy, delta)
+                q1 = self._rotate_about_xy(base_q1, origin_xy, delta)
+                self._add_grouped_silk_segment(group, q0, q1, width=width)
+
+        add_rotated_line_block(
+            1.0,
+            angle_span,
+            tick_len=max(7.0 * self.SCALE, 4.0 * hole_radius),
+            width=max(1, 0.08 * self.SCALE),
+        )
+        add_rotated_line_block(
+            step_deg,
+            angle_span,
+            tick_len=max(2.2 * self.SCALE, 1.2 * hole_radius),
+            width=max(1, 0.10 * self.SCALE),
+        )
+
+    def _build_offset_outline(self, group, origin_xy):
+        cx, cy = origin_xy
+        self._add_grouped_edge_circle(group, origin_xy, self.r_in)
+        relief_dia = max(min(0.12 * (2.0 * self.r_in), 2.0 * self.SCALE), 0.8 * self.SCALE) if self.r_in > 0 else 0
+        if relief_dia > 0 and self.r_in > (1.5 * relief_dia):
+            relief_radius = self.r_in + (0.5 * relief_dia)
+            for angle in (math.pi / 4.0, 3.0 * math.pi / 4.0, 5.0 * math.pi / 4.0, 7.0 * math.pi / 4.0):
+                rp = (
+                    cx + relief_radius * math.cos(angle),
+                    cy + relief_radius * math.sin(angle),
+                )
+                self._add_grouped_edge_circle(group, rp, relief_dia / 2.0)
+
+        if self.n_edges == 0:
+            self._add_grouped_edge_circle(group, origin_xy, self.r_out)
+            return
+
+        points = self._outline_poly_points(self.r_out, self.n_edges)
+        if not points:
+            return
+        pts = [self._offset_xy(self._point_xy(pt), origin_xy) for pt in points]
+        for i in range(len(pts)):
+            self._add_grouped_silk_segment(group, pts[i], pts[(i + 1) % len(pts)], width=max(1, 0.09 * self.SCALE))
+            seg = pcbnew.PCB_SHAPE(self.board, pcbnew.SHAPE_T_SEGMENT)
+            seg.SetStart(self._as_point(pts[i][0], pts[i][1]))
+            seg.SetEnd(self._as_point(pts[(i + 1) % len(pts)][0], pts[(i + 1) % len(pts)][1]))
+            seg.SetLayer(pcbnew.Edge_Cuts)
+            self.board.Add(seg)
+            if group is not None:
+                group.AddItem(seg)
+
+    def _build_offset_mounting_holes(self, group, origin_xy):
+        if self.mhs == "None":
+            return
+        fp_lib = self.fp_path + 'MountingHole.pretty'
+        fp = self.mhole_db.get(self.mhs)
+        if not fp:
+            return
+        ni_gnd = self.board.FindNet("gnd")
+
+        if self.n_mh_out > 0:
+            r_mh_out = float(self.r_mh_out)
+            if self.n_edges > 0:
+                r_mh_out /= max(math.cos(math.pi / self.n_edges), 1e-6)
+            th0 = 2 * math.pi / self.n_mh_out
+            for i in range(self.n_mh_out):
+                pos = (
+                    origin_xy[0] + r_mh_out * math.cos(th0 * i + th0 / 2.0),
+                    origin_xy[1] + r_mh_out * math.sin(th0 * i + th0 / 2.0),
+                )
+                self._add_mounting_hole_fp_at(group, pos, fp_lib, fp, f"MMO_{i}", net=ni_gnd)
+
+        if self.n_mh_in > 0:
+            th0 = 2 * math.pi / self.n_mh_in
+            for i in range(self.n_mh_in):
+                pos = (
+                    origin_xy[0] + float(self.r_mh_in) * math.cos(th0 * i + th0 / 2.0),
+                    origin_xy[1] + float(self.r_mh_in) * math.sin(th0 * i + th0 / 2.0),
+                )
+                self._add_mounting_hole_fp_at(group, pos, fp_lib, fp, f"MMI_{i}", net=ni_gnd)
+
+        if getattr(self, "silk_hole_scales", False):
+            for x, y, angle, dia in self._iter_corner_points_for_origin(origin_xy):
+                self._add_linear_hole_scale_at(group, (x, y), angle, max(dia * 0.5, 0.5 * self.SCALE), origin_xy)
+
+    def _build_magnet_markers(self, group, origin_xy):
+        if self.magnet_poles <= 0:
+            return
+        radius = 0.5 * float(self.magnet_ring_dia)
+        rot0 = math.radians(self.magnet_rotation)
+        pitch = 2.0 * math.pi / self.magnet_poles
+        for idx in range(self.magnet_poles):
+            angle = rot0 + idx * pitch
+            center = (
+                origin_xy[0] + radius * math.cos(angle),
+                origin_xy[1] + radius * math.sin(angle),
+            )
+            if self.magnet_shape == "round":
+                self._add_grouped_silk_circle(group, center, 0.5 * float(self.magnet_dia))
+            else:
+                half_w = 0.5 * float(self.magnet_width)
+                half_h = 0.5 * float(self.magnet_height)
+                tang = np.array([-math.sin(angle), math.cos(angle)])
+                rad = np.array([math.cos(angle), math.sin(angle)])
+                pts = []
+                for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+                    p = np.array(center) + tang * (sx * half_w) + rad * (sy * half_h)
+                    pts.append((p[0], p[1]))
+                for i in range(4):
+                    self._add_grouped_silk_segment(group, pts[i], pts[(i + 1) % 4])
+
+    def generate_magnet_pcb(self):
+        self.get_parameters()
+        errors, warnings = self.validate_magnet_parameters()
+        if errors:
+            raise ValueError("\n".join(errors))
+
+        origin_xy = self._get_magnet_board_origin()
+        group = self._create_magnet_group()
+        self._build_offset_outline(group, origin_xy)
+        self._build_offset_mounting_holes(group, origin_xy)
+        self._build_magnet_markers(group, origin_xy)
+
+        if getattr(self, "silk_cross_guides", False):
+            outer = float(self.r_out)
+            self._add_grouped_silk_segment(group, (origin_xy[0] - outer, origin_xy[1]), (origin_xy[0] + outer, origin_xy[1]))
+            self._add_grouped_silk_segment(group, (origin_xy[0], origin_xy[1] - outer), (origin_xy[0], origin_xy[1] + outer))
+
+        summary = (
+            f"Magnet PCB generated at +{origin_xy[0] / self.SCALE:.2f} mm X offset.\n"
+            f"Poles: {self.magnet_poles}\n"
+            f"Ring dia: {self.magnet_ring_dia / self.SCALE:.2f} mm"
+        )
+        if warnings:
+            summary += "\nWarnings:\n- " + "\n- ".join(warnings)
+        self._update_magnet_summary(summary)
 
     def init_path(self):
         self.fp_path = None
@@ -927,6 +1370,13 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             self.lbl_totalR.SetLabel('%.3f' % stats["total_resistance"])
             self.lbl_coilR.SetLabel('%.3f' % stats["coil_resistance_per_coil"])
             self.lbl_ringR.SetLabel('%.3f' % stats["ring_resistance_total"])
+            motor_consts = self.estimate_motor_constants(stats)
+            if hasattr(self, "lbl_ke"):
+                self.lbl_ke.SetLabel('%.4f' % motor_consts["ke_est"])
+            if hasattr(self, "lbl_kt"):
+                self.lbl_kt.SetLabel('%.4f' % motor_consts["kt_est"])
+            if hasattr(self, "lbl_kv"):
+                self.lbl_kv.SetLabel('%.1f' % motor_consts["kv_est"])
 
             self.do_silkscreen(self.r_coil_out + self.trk_w, self.r_coil_in, self.th0)
             if hasattr(self.board, 'BuildConnectivity'):
@@ -2027,7 +2477,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         info_anchor = self._get_bottom_right_info_anchor()
         self._add_silk_text(
             build_label,
-            (info_anchor[0], info_anchor[1]),
+            (info_anchor[0] - 2.6 * self.SCALE, info_anchor[1]),
             0.95,
             "left",
         )
@@ -2039,13 +2489,13 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         )
         self._add_silk_text(
             f"R / phase: {phase_r_est:.4f} ohm",
-            (info_anchor[0] - 2.6 * self.SCALE, info_anchor[1] - 3.6 * self.SCALE),
+            (info_anchor[0], info_anchor[1] - 3.6 * self.SCALE),
             0.95,
             "left",
         )
         self._add_silk_text(
             f"R / coil: {coil_r_est:.4f} ohm",
-            (info_anchor[0] - 2.6 * self.SCALE, info_anchor[1] - 5.4 * self.SCALE),
+            (info_anchor[0], info_anchor[1] - 5.4 * self.SCALE),
             0.95,
             "left",
         )
@@ -2176,6 +2626,29 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         self.generate()
         event.Skip()
 
+    def on_btn_generate_magnet(self, event):
+        self.set_status("Started: magnet PCB generation running")
+        try:
+            self.Update()
+            wx.YieldIfNeeded()
+        except Exception:
+            pass
+
+        try:
+            self.generate_magnet_pcb()
+            self.board.BuildConnectivity()
+            pcbnew.Refresh()
+            try:
+                pcbnew.UpdateUserInterface()
+            except Exception:
+                pass
+            self.set_status("Magnet PCB generated")
+        except Exception as e:
+            self._update_magnet_summary(str(e))
+            self.set_status("Magnet PCB generation failed")
+            wx.LogError(f"Magnet PCB generation failed:\n{e}")
+        event.Skip()
+
     def on_btn_save(self, event):
         self.pm.SaveAndUnregister()
         self.pm.RegisterAndRestoreAll(self)
@@ -2254,6 +2727,23 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                     self.m_termSize.GetCurrentSelection()))
             self.m_termSize.Enable(True)
 
+        if event is not None:
+            event.Skip()
+
+    def on_cb_magnet_shape(self, event):
+        shape = self.m_cbMagShape.GetStringSelection() if hasattr(self, "m_cbMagShape") else "Round"
+        is_round = (shape == "Round")
+        for ctrl in (self.lbl_magDia, self.m_ctrlMagDia, self.lbl_magDiaUnit):
+            ctrl.Enable(is_round)
+        for ctrl in (
+            self.lbl_magWidth, self.m_ctrlMagWidth, self.lbl_magWidthUnit,
+            self.lbl_magHeight, self.m_ctrlMagHeight, self.lbl_magHeightUnit,
+        ):
+            ctrl.Enable(not is_round)
+        self._update_magnet_summary(
+            "Round magnets use Magnet dia. Rect magnets use width (B) and height (H). "
+            "Use Generate Magnet PCB for a first fit-check against ring diameter and pole count."
+        )
         if event is not None:
             event.Skip()
 
