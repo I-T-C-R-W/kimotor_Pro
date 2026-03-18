@@ -921,6 +921,11 @@ class KMotorProGUI ( wx.Frame ):
 		self.btn_generate_magnet.SetBackgroundColour( wx.Colour(25,118,210) )
 		self.btn_generate_magnet.SetMinSize( wx.Size(170, 40) )
 
+		self.btn_generate_both = wx.Button( self, wx.ID_ANY, u"Generate Both", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"btn_generate_both" )
+		self.btn_generate_both.SetForegroundColour( wx.Colour(255,255,255) )
+		self.btn_generate_both.SetBackgroundColour( wx.Colour(120,85,72) )
+		self.btn_generate_both.SetMinSize( wx.Size(170, 40) )
+
 		self.btn_ok = wx.Button( self, wx.ID_OK, u"Generate", wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"btn_ok" )
 		self.btn_ok.SetForegroundColour( wx.Colour(255,255,255) )
 		self.btn_ok.SetBackgroundColour( wx.Colour(46,125,50) )
@@ -928,6 +933,7 @@ class KMotorProGUI ( wx.Frame ):
 
 		bSizerBottomRight.Add( ( 0, 0), 1, wx.EXPAND, 5 )
 		bSizerBottomRight.Add( self.btn_generate_magnet, 0, wx.ALIGN_CENTER|wx.BOTTOM, 8 )
+		bSizerBottomRight.Add( self.btn_generate_both, 0, wx.ALIGN_CENTER|wx.BOTTOM, 8 )
 		bSizerBottomRight.Add( self.btn_ok, 0, wx.ALIGN_CENTER|wx.ALL, 0 )
 		bSizerBottomRight.Add( ( 0, 0), 1, wx.EXPAND, 5 )
 
@@ -1154,6 +1160,7 @@ class KMotorProGUI ( wx.Frame ):
 		self.btn_save.Bind( wx.EVT_BUTTON, self.on_btn_save )
 		self.btn_clear.Bind( wx.EVT_BUTTON, self.on_btn_clear )
 		self.btn_generate_magnet.Bind( wx.EVT_BUTTON, self.on_btn_generate_magnet )
+		self.btn_generate_both.Bind( wx.EVT_BUTTON, self.on_btn_generate_both )
 		self.btn_ok.Bind( wx.EVT_BUTTON, self.on_btn_generate )
 
 	def __del__( self ):
@@ -1182,6 +1189,8 @@ class KMotorProGUI ( wx.Frame ):
 	def on_btn_clear( self, event ):
 		event.Skip()
 	def on_btn_generate_magnet( self, event ):
+		event.Skip()
+	def on_btn_generate_both( self, event ):
 		event.Skip()
 	def on_btn_generate( self, event ):
 		event.Skip()

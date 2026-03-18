@@ -637,43 +637,52 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         return txt
 
     def _add_grouped_silk_segment(self, group, start_xy, end_xy, width=None):
+        return self._add_grouped_segment(group, start_xy, end_xy, pcbnew.F_SilkS, width if width is not None else max(1, 0.127 * self.SCALE))
+
+    def _add_grouped_segment(self, group, start_xy, end_xy, layer, width):
         seg = pcbnew.PCB_SHAPE(self.board, pcbnew.SHAPE_T_SEGMENT)
         seg.SetStart(self._as_point(start_xy[0], start_xy[1]))
         seg.SetEnd(self._as_point(end_xy[0], end_xy[1]))
-        seg.SetLayer(pcbnew.F_SilkS)
-        seg.SetWidth(int(width if width is not None else max(1, 0.127 * self.SCALE)))
+        seg.SetLayer(layer)
+        seg.SetWidth(int(width))
         self.board.Add(seg)
         if group is not None:
             group.AddItem(seg)
         return seg
 
     def _add_grouped_silk_circle(self, group, center_xy, radius, width=None):
+        return self._add_grouped_circle(group, center_xy, radius, pcbnew.F_SilkS, width if width is not None else max(1, 0.127 * self.SCALE))
+
+    def _add_grouped_circle(self, group, center_xy, radius, layer, width):
         circle = pcbnew.PCB_SHAPE(self.board)
         circle.SetShape(pcbnew.SHAPE_T_CIRCLE)
         circle.SetFilled(False)
         circle.SetStart(self._as_point(center_xy[0], center_xy[1]))
         circle.SetEnd(self._as_point(center_xy[0] + radius, center_xy[1]))
         circle.SetCenter(self._as_point(center_xy[0], center_xy[1]))
-        circle.SetLayer(pcbnew.F_SilkS)
-        circle.SetWidth(int(width if width is not None else max(1, 0.127 * self.SCALE)))
+        circle.SetLayer(layer)
+        circle.SetWidth(int(width))
         self.board.Add(circle)
         if group is not None:
             group.AddItem(circle)
         return circle
 
     def _add_grouped_edge_circle(self, group, center_xy, radius, width=None):
-        circle = pcbnew.PCB_SHAPE(self.board)
-        circle.SetShape(pcbnew.SHAPE_T_CIRCLE)
-        circle.SetFilled(False)
-        circle.SetStart(self._as_point(center_xy[0], center_xy[1]))
-        circle.SetEnd(self._as_point(center_xy[0] + radius, center_xy[1]))
-        circle.SetCenter(self._as_point(center_xy[0], center_xy[1]))
-        circle.SetLayer(pcbnew.Edge_Cuts)
-        circle.SetWidth(int(width if width is not None else max(1, 0.09 * self.SCALE)))
-        self.board.Add(circle)
-        if group is not None:
-            group.AddItem(circle)
-        return circle
+        return self._add_grouped_circle(group, center_xy, radius, pcbnew.Edge_Cuts, width if width is not None else max(1, 0.09 * self.SCALE))
+
+    def _get_magnet_aux_layer(self):
+        return getattr(pcbnew, "Dwgs_User", pcbnew.F_SilkS)
+
+    def _add_grouped_rect_outline(self, group, center_xy, half_w, half_h, angle, layer, width):
+        tang = np.array([-math.sin(angle), math.cos(angle)])
+        rad = np.array([math.cos(angle), math.sin(angle)])
+        pts = []
+        for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+            p = np.array(center_xy) + tang * (sx * half_w) + rad * (sy * half_h)
+            pts.append((p[0], p[1]))
+        for i in range(4):
+            self._add_grouped_segment(group, pts[i], pts[(i + 1) % 4], layer, width)
+        return pts
 
     def get_parameters(self):
         self.outline = self.m_cbOutline.GetStringSelection()
@@ -866,12 +875,21 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                 f"Magnet ring exceeds safe board radius ({outer_edge / self.SCALE:.2f} mm >= {float(self.r_out) / self.SCALE:.2f} mm)."
             )
 
-        clearance_radius = 0.5 * math.hypot(magnet_span, radial_span) + self.magnet_keepout
-        for hx, hy, hr, label in self._iter_magnet_clearance_targets():
-            dist = math.hypot(hx, hy)
-            if abs(dist - radius) <= (clearance_radius + hr):
+        radial_clearance = 0.5 * radial_span + self.magnet_keepout
+        angular_half_span = (0.5 * magnet_span + self.magnet_keepout) / max(radius, 1.0)
+        for target_r, target_angle, hr, label in self._iter_magnet_clearance_targets():
+            radial_delta = abs(target_r - radius)
+            if radial_delta > (radial_clearance + hr):
+                continue
+            target_half_span = math.asin(min(0.999999, (hr + self.magnet_keepout) / max(target_r, 1.0)))
+            angle_delta = self._nearest_magnet_angle_delta(target_angle)
+            if angle_delta <= (angular_half_span + target_half_span):
                 warnings.append(
-                    f"Magnet ring is close to {label} (radial delta {abs(dist - radius) / self.SCALE:.2f} mm)."
+                    f"Magnet ring overlaps the clearance zone of {label} near angle {math.degrees(target_angle):.1f} deg."
+                )
+            else:
+                warnings.append(
+                    f"Magnet ring is close to {label} (radial delta {radial_delta / self.SCALE:.2f} mm)."
                 )
 
         if self.magnet_ring_dia >= float(self.r_out) * 2.0:
@@ -911,20 +929,34 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             th0 = 2 * math.pi / self.n_mh_out
             for i in range(self.n_mh_out):
                 angle = th0 * i + th0 / 2.0
-                targets.append((radius * math.cos(angle), radius * math.sin(angle), mh_radius, "outer mounting holes"))
+                targets.append((radius, angle, mh_radius, "outer mounting holes"))
 
         if self.n_mh_in > 0 and self.r_mh_in > 0:
             th0 = 2 * math.pi / self.n_mh_in
             for i in range(self.n_mh_in):
                 angle = th0 * i + th0 / 2.0
                 radius = float(self.r_mh_in)
-                targets.append((radius * math.cos(angle), radius * math.sin(angle), mh_radius, "inner mounting holes"))
+                targets.append((radius, angle, mh_radius, "inner mounting holes"))
 
         if self.n_edges == 4 and self.corner_hole_offset > 0 and self.corner_hole_dia > 0:
-            for x, y, _angle, dia in self._iter_outer_mount_points():
-                targets.append((x, y, 0.5 * dia, "corner alignment holes"))
+            for x, y, angle, dia in self._iter_outer_mount_points():
+                targets.append((math.hypot(x, y), angle, 0.5 * dia, "corner alignment holes"))
 
         return targets
+
+    def _angle_delta(self, a, b):
+        d = (a - b + math.pi) % (2.0 * math.pi) - math.pi
+        return abs(d)
+
+    def _nearest_magnet_angle_delta(self, target_angle):
+        if self.magnet_poles <= 0:
+            return math.pi
+        pitch = 2.0 * math.pi / self.magnet_poles
+        rot0 = math.radians(self.magnet_rotation)
+        rel = (target_angle - rot0) / pitch
+        nearest_idx = round(rel)
+        nearest_angle = rot0 + nearest_idx * pitch
+        return self._angle_delta(target_angle, nearest_angle)
 
     def estimate_motor_constants(self, stats=None):
         if stats is None:
@@ -1141,6 +1173,9 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         radius = 0.5 * float(self.magnet_ring_dia)
         rot0 = math.radians(self.magnet_rotation)
         pitch = 2.0 * math.pi / self.magnet_poles
+        aux_layer = self._get_magnet_aux_layer()
+        body_width = max(1, 0.12 * self.SCALE)
+        keepout_width = max(1, 0.08 * self.SCALE)
         for idx in range(self.magnet_poles):
             angle = rot0 + idx * pitch
             center = (
@@ -1148,18 +1183,24 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                 origin_xy[1] + radius * math.sin(angle),
             )
             if self.magnet_shape == "round":
-                self._add_grouped_silk_circle(group, center, 0.5 * float(self.magnet_dia))
+                body_r = 0.5 * float(self.magnet_dia)
+                self._add_grouped_silk_circle(group, center, body_r, width=body_width)
+                if self.magnet_keepout > 0:
+                    self._add_grouped_circle(group, center, body_r + float(self.magnet_keepout), aux_layer, keepout_width)
             else:
                 half_w = 0.5 * float(self.magnet_width)
                 half_h = 0.5 * float(self.magnet_height)
-                tang = np.array([-math.sin(angle), math.cos(angle)])
-                rad = np.array([math.cos(angle), math.sin(angle)])
-                pts = []
-                for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
-                    p = np.array(center) + tang * (sx * half_w) + rad * (sy * half_h)
-                    pts.append((p[0], p[1]))
-                for i in range(4):
-                    self._add_grouped_silk_segment(group, pts[i], pts[(i + 1) % 4])
+                self._add_grouped_rect_outline(group, center, half_w, half_h, angle, pcbnew.F_SilkS, body_width)
+                if self.magnet_keepout > 0:
+                    self._add_grouped_rect_outline(
+                        group,
+                        center,
+                        half_w + float(self.magnet_keepout),
+                        half_h + float(self.magnet_keepout),
+                        angle,
+                        aux_layer,
+                        keepout_width,
+                    )
 
     def generate_magnet_pcb(self):
         self.get_parameters()
@@ -2647,6 +2688,32 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             self._update_magnet_summary(str(e))
             self.set_status("Magnet PCB generation failed")
             wx.LogError(f"Magnet PCB generation failed:\n{e}")
+        event.Skip()
+
+    def on_btn_generate_both(self, event):
+        self.set_status("Started: combined stator + magnet generation running")
+        try:
+            self.Update()
+            wx.YieldIfNeeded()
+        except Exception:
+            pass
+
+        try:
+            self.generate()
+            self.generate_magnet_pcb()
+            try:
+                self.board.BuildConnectivity()
+            except Exception:
+                pass
+            pcbnew.Refresh()
+            try:
+                pcbnew.UpdateUserInterface()
+            except Exception:
+                pass
+            self.set_status("Stator and Magnet PCB generated")
+        except Exception as e:
+            self.set_status("Combined generation failed")
+            wx.LogError(f"Combined generation failed:\n{e}")
         event.Skip()
 
     def on_btn_save(self, event):
