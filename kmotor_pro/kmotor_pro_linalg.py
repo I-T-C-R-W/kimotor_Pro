@@ -370,11 +370,6 @@ def line_arc_center(t1, t2, f, side=1):
 
     return c
 
-# TODO: implement
-def arc_arc_center(t1, t2, f):
-    return
-
-
 def normalize(t):
     # returns (unit vector) direction of the track
     n = np.array([ t.GetEndX()-t.GetX(), t.GetEndY()-t.GetY() ])
@@ -403,40 +398,3 @@ def tangent(t, end = False):
     s = np.sign( np.dot(z,x) )
 
     return np.cross([0,0,s], rv)
-
-# TODO: remove? TBC
-def angle_and_bisect(t1, t2):
-    # find angle and bisect vector between tracks, using tangent if track is arc
-    # (assumes track1_end == track2_start)
-
-    if t1.GetClass() == 'PCB_ARC':
-        v1 = tangent(t1, True)
-    else:
-        t1s = t1.GetStart()
-        t1e = t1.GetEnd()
-        v1 = np.array([ t1e.x-t1s.x, t1e.y-t1s.y, 0 ])
-        v1 = v1 / t1.GetLength()
-
-    if t2.GetClass() == 'PCB_ARC':
-        v2 = tangent(t2)
-    else:
-        v2 = np.array([ t2.GetEndX()-t2.GetX(), t2.GetEndY()-t2.GetY(), 0 ])
-        v2 = v2 / t2.GetLength()
-
-    z = np.array([0,0,1])
-
-
-    d = np.dot(v1,v2)
-    c = np.cross(v1,v2)
-    # +/- rotation?
-    s = np.sign( np.dot(z,c) )
-
-    # angle
-    a = s * math.acos(d)
-
-    # normalized bisect
-    b = (v1+v2) / np.linalg.norm(v1+v2)
-    b = np.cross(b,-z)
-    b = b / np.linalg.norm(b)
-
-    return a, b
