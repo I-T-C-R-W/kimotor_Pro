@@ -1149,12 +1149,10 @@ class KMotorProGUI ( wx.Frame ):
 		self.Bind( wx.EVT_CLOSE, self.on_close )
 		self.m_cbOutline.Bind( wx.EVT_TEXT, self.on_cb_outline )
 		self.m_cbMountSize.Bind( wx.EVT_TEXT, self.on_cb_mholes )
-		self.m_cbScheme.Bind( wx.EVT_TEXT, self.on_cb_connections )
 		self.m_cbStrategy.Bind( wx.EVT_TEXT, self.on_cb_outline )
 		self.m_cbPreset.Bind( wx.EVT_TEXT, self.on_cb_preset )
 		self.m_ctrlLayers.Bind( wx.EVT_SPINCTRLDOUBLE, self.on_nr_layers )
 		self.m_cbTP.Bind( wx.EVT_TEXT, self.on_cb_trmtype )
-		self.m_termSize.Bind( wx.EVT_TEXT, self.on_cb_connections )
 		self.m_cbMagShape.Bind( wx.EVT_TEXT, self.on_cb_magnet_shape )
 		self.btn_load.Bind( wx.EVT_BUTTON, self.on_btn_load )
 		self.btn_save.Bind( wx.EVT_BUTTON, self.on_btn_save )
@@ -1171,8 +1169,6 @@ class KMotorProGUI ( wx.Frame ):
 	def on_cb_outline( self, event ):
 		event.Skip()
 	def on_cb_mholes( self, event ):
-		event.Skip()
-	def on_cb_connections( self, event ):
 		event.Skip()
 	def on_cb_preset( self, event ):
 		event.Skip()
