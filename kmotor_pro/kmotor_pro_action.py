@@ -1990,6 +1990,11 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         r_min = max(float(self.r_coil_in) - self.dr, 0.0)
         r_max = float(self.r_coil_out) + self.dr
         d_max = max(th_slot * 0.06, 0.008)
+        via_inset = max(float(self.m_ctrlViaDia.GetValue()) * 0.60, self.SCALE * 0.04)
+
+        def as_inset_point(radius):
+            rr = max(radius - via_inset, 0.0)
+            return self._as_point(rr * math.cos(th_center), rr * math.sin(th_center))
 
         def collect(arr):
             rows = []
@@ -2007,10 +2012,41 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                 return sorted(close, key=lambda c: (c[0], c[1]))
             return sorted(rows, key=lambda c: (c[0], c[1]))
 
+        def discrete_centerline_radii(arr):
+            radii = []
+            merge_tol = max(self.dr * 0.20, self.SCALE * 0.05)
+            for d, r in collect(arr):
+                if d > d_max:
+                    continue
+                if not radii or abs(r - radii[-1]) > merge_tol:
+                    radii.append(r)
+            return radii
+
         cand_a = collect(arr_a)
         cand_b = collect(arr_b)
         if not cand_a or not cand_b:
             return None
+
+        rails_a = discrete_centerline_radii(arr_a)
+        rails_b = discrete_centerline_radii(arr_b)
+        if rails_a and rails_b:
+            same_rail_tol = max(self.dr * 0.20, self.SCALE * 0.05)
+            shared = []
+            for ra in rails_a:
+                for rb in rails_b:
+                    if abs(ra - rb) <= same_rail_tol:
+                        rail_r = 0.5 * (ra + rb)
+                        if not shared or abs(rail_r - shared[-1]) > same_rail_tol:
+                            shared.append(rail_r)
+                        break
+            if shared:
+                mid_r = 0.5 * (float(self.r_coil_in) + float(self.r_coil_out))
+                outer_rails = [r for r in shared if r >= mid_r]
+                if outer_rails:
+                    outer_rails = sorted(outer_rails, reverse=True)
+                    target_index = min(max(self.n_loops - 1, 0), len(outer_rails) - 1)
+                    best = outer_rails[target_index]
+                    return as_inset_point(best)
 
         # Prefer the outer bridge candidate when both inner and outer crossings exist.
         # In low-height / near-square slots the paired geometry often produces two
@@ -2028,8 +2064,8 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         if not pair_candidates:
             return None
 
-        threshold = max(self.trk_w * 0.85, self.dr * 0.65, self.SCALE * 0.15)
         valid_radii = []
+        threshold = max(self.trk_w * 0.85, self.dr * 0.65, self.SCALE * 0.15)
         for _, radius in sorted(pair_candidates, key=lambda item: item[0]):
             dist_a = self._nearest_point_distance(radius, th_center, arr_a)
             dist_b = self._nearest_point_distance(radius, th_center, arr_b)
@@ -2040,7 +2076,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         if not valid_radii:
             return None
         best = max(valid_radii)
-        return self._as_point(best * math.cos(th_center), best * math.sin(th_center))
+        return as_inset_point(best)
 
     def add_through_via(self, position, net=None):
         return self.add_custom_through_via(position, net=net, drill=self.d_drill, width=self.d_via)
