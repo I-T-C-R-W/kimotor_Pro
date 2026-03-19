@@ -1945,35 +1945,47 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
     def build_slot_center_via(self, arr_a, arr_b, th_center, th_slot):
         # Pick a deterministic centerline point for the inter-layer via and verify
         # that it can actually bridge both coil halves.
-        cand = []
-        for arr in (arr_a, arr_b):
+        r_min = max(float(self.r_coil_in) - self.dr, 0.0)
+        r_max = float(self.r_coil_out) + self.dr
+        d_max = max(th_slot * 0.06, 0.008)
+
+        def collect(arr):
+            rows = []
             for p in arr:
                 x, y = self._point_xy(p)
                 r = math.hypot(x, y)
+                if r < r_min or r > r_max:
+                    continue
                 d = abs(self._angle_diff(math.atan2(y, x), th_center))
-                cand.append((d, r))
+                rows.append((d, r))
+            if not rows:
+                return []
+            close = [row for row in rows if row[0] <= d_max]
+            if close:
+                return sorted(close, key=lambda c: (c[0], c[1]))
+            return sorted(rows, key=lambda c: (c[0], c[1]))
 
-        if not cand:
+        cand_a = collect(arr_a)
+        cand_b = collect(arr_b)
+        if not cand_a or not cand_b:
             return None
 
-        d_max = max(th_slot * 0.06, 0.008)
-        r_min = max(float(self.r_coil_in) - self.dr, 0.0)
-        r_max = float(self.r_coil_out) + self.dr
-        close = [c for c in cand if c[0] <= d_max and r_min <= c[1] <= r_max]
-        if not close:
-            close = [c for c in cand if r_min <= c[1] <= r_max]
-        if not close:
+        r_mid = 0.5 * (float(self.r_coil_in) + float(self.r_coil_out))
+        pair_limit = min(8, len(cand_a), len(cand_b))
+        pair_candidates = []
+        for da, ra in cand_a[:pair_limit]:
+            for db, rb in cand_b[:pair_limit]:
+                avg_r = 0.5 * (ra + rb)
+                pair_candidates.append((
+                    (da + db, abs(ra - rb), abs(avg_r - r_mid)),
+                    avg_r,
+                ))
+        if not pair_candidates:
             return None
-
-        r_values = [c[1] for c in close]
-        r_low = min(r_values)
-        r_high = max(r_values)
-        r_target = r_low + 0.62 * (r_high - r_low)
-        best_radius = min(close, key=lambda c: (abs(c[1] - r_target), c[0]))[1]
 
         threshold = max(self.trk_w * 0.85, self.dr * 0.65, self.SCALE * 0.15)
         best = None
-        for radius in sorted({best_radius} | {c[1] for c in close}, key=lambda r: abs(r - r_target)):
+        for _, radius in sorted(pair_candidates, key=lambda item: item[0]):
             dist_a = self._nearest_point_distance(radius, th_center, arr_a)
             dist_b = self._nearest_point_distance(radius, th_center, arr_b)
             worst = max(dist_a if dist_a is not None else 1e9, dist_b if dist_b is not None else 1e9)
