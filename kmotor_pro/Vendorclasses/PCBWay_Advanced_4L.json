@@ -1,0 +1,24 @@
+{
+  "id": "PCBWay_Advanced_4L",
+  "vendor": "PCBWay",
+  "class": "Advanced 4L",
+  "layers": 4,
+  "description": "Fill with normalized vendor capability values.",
+  "parameters": {
+    "track_width_mm": { "min": null, "rec": null, "max": null },
+    "track_spacing_mm": { "min": null, "rec": null, "max": null },
+    "via_drill_mm": { "min": null, "rec": null, "max": null },
+    "via_diameter_mm": { "min": null, "rec": null, "max": null },
+    "ring_width_mm": { "min": null, "rec": null, "max": null },
+    "ring_spacing_mm": { "min": null, "rec": null, "max": null },
+    "copper_weight_oz": { "min": null, "rec": null, "max": null },
+    "board_thickness_mm": { "min": null, "rec": null, "max": null },
+    "copper_thickness_um": { "min": null, "rec": null, "max": null },
+    "routing_clearance_mm": { "min": null, "rec": null, "max": null }
+  },
+  "source": {
+    "url": "",
+    "notes": "",
+    "last_checked": ""
+  }
+}
