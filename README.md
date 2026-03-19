@@ -1,38 +1,59 @@
-# KiMotor Pro
+# KMotor_Pro
 
-First release of the KiCad 9 fork with deterministic routing, hardened geometry handling and release-ready silkscreen/alignment helpers for PCB motor builds.
+Current KiCad 9 GPL fork of KiMotor with deterministic PCB motor generation, extended stats, fabrication presets and a second magnet-PCB workflow.
 
-![KiMotor Pro Release Board](app.png)
-![KiMotor Pro Release UI](app2.png)
+![KMotor_Pro Board](app.png)
+![KMotor_Pro UI](app2.png)
 
-## First Release Scope
+## Credits
 
-- Radial coil generation is the default path.
-- KiCad 9 footprint directory detection uses version-aware variables such as `KICAD9_FOOTPRINT_DIR`.
-- Generated GND and mask zones are replaced without deleting unrelated board zones.
+- Original KiMotor concept and base implementation: Stefano Cottafavi
+- Fork, UI overhaul, routing fixes, silkscreen/alignment helpers and ongoing development: I-T-C-R-W
+
+## Current Feature Set
+
+- Radial coil generation remains the default stable path.
+- `Parallel`, `Radial` and `Compact` coil style controls are available.
+- `maxSpec layout` can switch dense / near-square slot setups to the compact workflow.
+- Optional `PCB` / `Wire` winding mode for stats derivation.
+- Fabrication presets for common JLCPCB and PCBWay setups.
+- `Generate Magnet PCB` and `Generate Both` create a second board with shared mechanics.
+- Corner alignment helpers generate NPTH hole arrays plus angular silkscreen scales.
 - Terminal references and board info text are placed deterministically.
-- Phase, coil and ring resistance values are calculated and shown in the GUI and on-board silkscreen.
-- Optional corner alignment helpers generate NPTH hole arrays plus silkscreen scale lines.
-- Square boards can use corner offset, hole diameter, scale step and span for repeatable angular alignment.
+- Generated GND and mask zones are replaced without deleting unrelated board zones.
 
-## Included Improvements
+## Physics / Stats
 
-- Safer geometry and intersection handling for vertical and near-vertical cases.
-- Deterministic slot anchor and center-via placement.
-- Support TH / support via handling with collision checks.
-- GUI layout cleanup and equalized column scaling.
-- Status panel with `Ready`, `Running`, `Finished` and `Failed`.
-- Expanded stats output for total, phase, coil and ring resistance.
+- Total, phase, coil and ring resistance
+- Total copper length
+- Turns per layer estimate
+- `Ke est`, `Kt est`, `Kv est`
+- Winding factor estimate
+- No-load RPM @ 12V estimate
+- Stall current and stall torque estimates
 
-## Current Focus
+All higher-level motor values are currently shown explicitly as estimates.
 
-- `3P` is the primary stable target for this first release.
-- `1P` is improved and usable.
-- `3P+N` still needs a dedicated final neutral-routing topology.
+## Mechanical / Layout Improvements
 
-## Notes
+- Safer geometry and intersection handling for vertical and near-vertical cases
+- Deterministic slot anchor placement
+- Deterministic center-via placement in the tested low-height edge cases
+- Support TH / support via handling with collision checks
+- KiCad 9 footprint directory detection via version-aware variables such as `KICAD9_FOOTPRINT_DIR`
+- GUI layout cleanup and equalized column scaling
+- Status panel with `Ready`, `Running`, `Finished` and `Failed`
 
-- `3P+N` Terminal-/Neutral-Topologie ist noch nicht final:
-  - N-Positionierung und Endrouting benötigen noch eine dedizierte, vollständig deterministische Topologie-Tabelle.
-- The hidden PCB preset code remains in place for compatibility, but is not yet an active GUI feature.
-- This release is meant as the stable baseline for the next stage: API access, deterministic engine extraction and broader design-space exploration.
+## Scope / Status
+
+- `3P` is the primary stable target
+- `1P` is improved and usable
+- `3P+N` still needs a final dedicated neutral-routing topology
+- `Compact` is currently a stable workflow/UI mode; its dedicated final geometry solver is still being expanded
+
+## Next Steps
+
+- predefined compact / maxSpec coil geometries
+- further magnet-PCB production geometry
+- richer derived motor stats
+- later API-oriented deterministic engine extraction
