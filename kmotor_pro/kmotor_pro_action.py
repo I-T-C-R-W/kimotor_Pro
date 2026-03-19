@@ -68,6 +68,68 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         "2 oz / 70um": 70e-6,
         "3 oz / 105um": 105e-6,
     }
+    PCB_PRESETS = {
+        "JLCPCB 2L economy": {
+            "layers": 2,
+            "track_width": 0.20,
+            "track_spacing": 0.20,
+            "ring_width": 0.70,
+            "ring_spacing": 0.30,
+            "via_dia": 0.50,
+            "via_drill": 0.30,
+            "copper_weight": "1 oz / 35um",
+        },
+        "JLCPCB 4L balanced": {
+            "layers": 4,
+            "track_width": 0.15,
+            "track_spacing": 0.15,
+            "ring_width": 0.70,
+            "ring_spacing": 0.25,
+            "via_dia": 0.45,
+            "via_drill": 0.20,
+            "copper_weight": "1 oz / 35um",
+        },
+        "JLCPCB 6L dense": {
+            "layers": 6,
+            "track_width": 0.127,
+            "track_spacing": 0.127,
+            "ring_width": 0.60,
+            "ring_spacing": 0.20,
+            "via_dia": 0.40,
+            "via_drill": 0.20,
+            "copper_weight": "0.5 oz / 18um",
+        },
+        "PCBWay 2L standard": {
+            "layers": 2,
+            "track_width": 0.18,
+            "track_spacing": 0.18,
+            "ring_width": 0.70,
+            "ring_spacing": 0.30,
+            "via_dia": 0.50,
+            "via_drill": 0.25,
+            "copper_weight": "1 oz / 35um",
+        },
+        "PCBWay 4L balanced": {
+            "layers": 4,
+            "track_width": 0.15,
+            "track_spacing": 0.15,
+            "ring_width": 0.65,
+            "ring_spacing": 0.25,
+            "via_dia": 0.45,
+            "via_drill": 0.20,
+            "copper_weight": "1 oz / 35um",
+        },
+        "PCBWay 6L heavy": {
+            "layers": 6,
+            "track_width": 0.20,
+            "track_spacing": 0.20,
+            "ring_width": 0.80,
+            "ring_spacing": 0.30,
+            "via_dia": 0.50,
+            "via_drill": 0.25,
+            "copper_weight": "2 oz / 70um",
+        },
+    }
 
     term_tht_db = {
         "0.1"   : "SolderWire-0.1sqmm_1x01_D0.4mm_OD1mm",
@@ -822,6 +884,28 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             "active_span_mm": active_span_mm,
             "pitch_mm": pitch_mm,
         }
+
+    def _apply_pcb_preset(self, preset_name):
+        if preset_name == "Custom":
+            return False
+        preset = self.PCB_PRESETS.get(preset_name)
+        if not preset:
+            return False
+
+        self.m_ctrlLayers.SetValue(preset["layers"])
+        self.m_ctrlTrackWidth.SetValue(preset["track_width"])
+        self.m_ctrlTrackSpacing.SetValue(preset["track_spacing"])
+        self.m_ctrlRingWidth.SetValue(preset["ring_width"])
+        self.m_ctrlRingSpacing.SetValue(preset["ring_spacing"])
+        self.m_ctrlViaDia.SetValue(preset["via_dia"])
+        self.m_ctrlViaDrill.SetValue(preset["via_drill"])
+        if hasattr(self, "m_cbCopperWeight"):
+            idx = self.m_cbCopperWeight.FindString(preset["copper_weight"])
+            if idx != wx.NOT_FOUND:
+                self.m_cbCopperWeight.SetSelection(idx)
+        self.on_nr_layers(None)
+        self.on_cb_winding_mode(None)
+        return True
 
     def set_status(self, text):
         ts = datetime.now().strftime("%H:%M:%S")
@@ -2938,13 +3022,10 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             if event is not None:
                 event.Skip()
             return
-        preset = self.m_cbPreset.GetSelection()
-        if preset == 0:
-            self.m_ctrlTrackWidth.SetValue(0.3)
-        elif preset == 1:
-            self.m_ctrlTrackWidth.SetValue(0.127)
-        elif preset == 2:
-            self.m_ctrlTrackWidth.SetValue(0.15)
+        preset_name = self.m_cbPreset.GetStringSelection()
+        applied = self._apply_pcb_preset(preset_name)
+        if applied:
+            self.set_status(f"Preset applied: {preset_name}")
         if event is not None:
             event.Skip()
 
@@ -3013,4 +3094,5 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
 
     def on_nr_layers(self, event):
         self.n_layers = int(self.m_ctrlLayers.GetValue())
-        event.Skip()
+        if event is not None:
+            event.Skip()

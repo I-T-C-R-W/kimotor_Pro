@@ -348,18 +348,16 @@ class KMotorProGUI ( wx.Frame ):
 
 		self.lbl_refresh_time121 = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"PCB preset:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_refresh_time121" )
 		self.lbl_refresh_time121.Wrap( -1 )
-		self.lbl_refresh_time121.Hide()
 		bSizer2121.Add( self.lbl_refresh_time121, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
 
 		bSizer2121.Add( ( 0, 0), 1, wx.EXPAND, 5 )
 
-		m_cbPresetChoices =[ u"Custom", u"JLCPCB, 1-2L", u"JLCPCB, 4-6L" ]
-		self.m_cbPreset = wx.ComboBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"JLCPCB, 6L", wx.DefaultPosition, wx.DefaultSize, m_cbPresetChoices, 0, wx.DefaultValidator, u"m_cbPreset" )
-		self.m_cbPreset.SetSelection( 2 )
-		self.m_cbPreset.Enable( False )
-		self.m_cbPreset.Hide()
+		m_cbPresetChoices =[ u"Custom", u"JLCPCB 2L economy", u"JLCPCB 4L balanced", u"JLCPCB 6L dense", u"PCBWay 2L standard", u"PCBWay 4L balanced", u"PCBWay 6L heavy" ]
+		self.m_cbPreset = wx.ComboBox( sbSizer1.GetStaticBox(), wx.ID_ANY, u"Custom", wx.DefaultPosition, wx.DefaultSize, m_cbPresetChoices, wx.CB_DROPDOWN|wx.CB_READONLY, wx.DefaultValidator, u"m_cbPreset" )
+		self.m_cbPreset.SetSelection( 0 )
 		bSizer2121.Add( self.m_cbPreset, 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.EXPAND, 5 )
 
+		sbElecRouting.Add( bSizer2121, 0, wx.EXPAND, 5 )
 		
 
 		bSizer212 = wx.BoxSizer( wx.HORIZONTAL )
