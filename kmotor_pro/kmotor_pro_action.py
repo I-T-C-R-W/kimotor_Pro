@@ -1934,13 +1934,24 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         tol_inner = max(self.dr * 1.25, self.trk_w * 2.0, self.SCALE * 0.5)
 
         inner = []
+        inner_edge = []
+        center_eps = max(
+            0.002,
+            math.asin(min(0.95, max(float(self.trk_w), float(self.dr)) / max(float(self.r_coil_in), 1.0)))
+        )
         for (x, y) in pts:
             r = math.hypot(x, y)
             # Primary target: real coil inner radius (corner region), not geometric r_min,
             # because r_min may hit the center bridge and cause mid-taps.
             if abs(r - self.r_coil_in) <= tol_inner:
                 dth = self._angle_diff(math.atan2(y, x), th_center)
-                inner.append((x, y, dth))
+                row = (x, y, dth)
+                inner.append(row)
+                if abs(dth) > center_eps:
+                    inner_edge.append(row)
+
+        if len(inner_edge) >= 2:
+            inner = inner_edge
 
         # Fallback to r_min-based selection only if no/too few candidates were found.
         if len(inner) < 2:
@@ -2018,17 +2029,17 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             return None
 
         threshold = max(self.trk_w * 0.85, self.dr * 0.65, self.SCALE * 0.15)
-        best = None
+        valid_radii = []
         for _, radius in sorted(pair_candidates, key=lambda item: item[0]):
             dist_a = self._nearest_point_distance(radius, th_center, arr_a)
             dist_b = self._nearest_point_distance(radius, th_center, arr_b)
             worst = max(dist_a if dist_a is not None else 1e9, dist_b if dist_b is not None else 1e9)
             if worst <= threshold:
-                best = radius
-                break
+                valid_radii.append(radius)
 
-        if best is None:
+        if not valid_radii:
             return None
+        best = max(valid_radii)
         return self._as_point(best * math.cos(th_center), best * math.sin(th_center))
 
     def add_through_via(self, position, net=None):
