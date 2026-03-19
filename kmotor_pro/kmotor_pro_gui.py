@@ -336,12 +336,25 @@ class KMotorProGUI ( wx.Frame ):
 
 		bSizer214.Add( ( 0, 0), 1, wx.EXPAND, 5 )
 
-		m_cbStrategyChoices =[ u"Parallel", u"Radial" ]
+		m_cbStrategyChoices =[ u"Parallel", u"Radial", u"Compact" ]
 		self.m_cbStrategy = wx.ComboBox( sbSizer1.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, m_cbStrategyChoices, 0, wx.DefaultValidator, u"m_cbStrategy" )
 		self.m_cbStrategy.SetSelection( 1 )
 		bSizer214.Add( self.m_cbStrategy, 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.EXPAND, 5 )
 
 		sbElecMotor.Add( bSizer214, 0, wx.EXPAND, 5 )
+
+		bSizer2141 = wx.BoxSizer( wx.HORIZONTAL )
+
+		self.lbl_maxSpec = wx.StaticText( sbSizer1.GetStaticBox(), wx.ID_ANY, u"maxSpec layout:", wx.DefaultPosition, wx.DefaultSize, 0, u"lbl_maxSpec" )
+		self.lbl_maxSpec.Wrap( -1 )
+		bSizer2141.Add( self.lbl_maxSpec, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		bSizer2141.Add( ( 0, 0), 1, wx.EXPAND, 5 )
+
+		self.m_chkMaxSpec = wx.CheckBox( sbSizer1.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0 )
+		bSizer2141.Add( self.m_chkMaxSpec, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
+
+		sbElecMotor.Add( bSizer2141, 0, wx.EXPAND, 5 )
 
 
 		bSizer2121 = wx.BoxSizer( wx.HORIZONTAL )

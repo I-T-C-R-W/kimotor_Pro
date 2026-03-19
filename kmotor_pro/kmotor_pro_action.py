@@ -788,6 +788,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         self.wire_dia_mm = float(self.m_ctrlWireDia.GetValue()) if hasattr(self, "m_ctrlWireDia") else 0.50
         
         self.strategy = self.m_cbStrategy.GetSelection()
+        self.max_spec = bool(self.m_chkMaxSpec.GetValue()) if hasattr(self, "m_chkMaxSpec") else False
 
         self.trk_w = int(self.m_ctrlTrackWidth.GetValue() * self.SCALE) 
         self.trk_space = int(self.m_ctrlTrackSpacing.GetValue() * self.SCALE) 
@@ -1221,6 +1222,28 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         if float(perf_stats.get("stall_current_est", 0.0)) > 50.0:
             warnings.append("high stall current")
         return warnings
+
+    def get_effective_coil_strategy(self, ri, ro, n_slots, n_loops):
+        radial_available = max(ro - ri, 0.0)
+        radial_required = max(n_loops * self.dr + self.trk_w, self.dr)
+        slot_pitch = (2.0 * math.pi) / max(n_slots, 1)
+        mean_radius = max(0.5 * (ri + ro), 1.0)
+        tangential_span = max(mean_radius * slot_pitch, 1.0)
+        aspect = float(radial_available) / float(tangential_span)
+
+        selected = int(getattr(self, "strategy", 1))
+        if selected == 2:
+            return 2, "Compact"
+
+        if getattr(self, "max_spec", False):
+            dense_fill = radial_required >= radial_available * 0.82
+            near_square = aspect <= 0.34
+            if dense_fill or near_square:
+                return 2, "Compact"
+
+        if selected == 0:
+            return 0, "Parallel"
+        return 1, "Radial"
 
     def _clear_magnet_group(self):
         if getattr(self, "magnet_group", None):
@@ -1696,6 +1719,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                     f"Copper total: {stats['copper_length_total_m']:.3f} m\n"
                     f"Length / phase: {stats['phase_len_mm']:.2f} mm\n"
                     f"Length / coil: {stats['coil_length_per_coil_mm']:.2f} mm\n"
+                    f"Coil style active: {getattr(self, 'active_coil_style_name', 'Radial')}\n"
                     f"Turns / layer est: {stats['turns_per_layer_est']:.2f}\n"
                     f"Length rings total: {stats['ring_length_mm']:.2f} mm\n"
                     f"R total: {stats['total_resistance']:.4f} ohm\n"
@@ -1794,9 +1818,16 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
 
     def do_coils(self, ri, ro, n_slots, n_loops=1, lset=None, mode=0):
         th0 = 2*math.pi/n_slots
-        if mode == 0:
+        effective_mode, effective_name = self.get_effective_coil_strategy(ri, ro, n_slots, n_loops)
+        self.active_coil_style_name = effective_name
+        if effective_mode == 0:
             pcu0, pcu0m, pcu0mi = ksolve.parallel( ri, ro, self.dr, th0, n_loops, 0 )
             pcu1, pcu1m, pcu1mi = ksolve.parallel( ri, ro, self.dr, th0, n_loops, 1 )
+        elif effective_mode == 2:
+            # Keep Compact stable on the radial point-layout until the dedicated
+            # compact solver path is fully validated against all tracker/routing cases.
+            pcu0 = ksolve.radial( ri, ro, self.dr, th0, n_loops, 0 )
+            pcu1 = ksolve.radial( ri, ro, self.dr, th0, n_loops, 1 )
         else:
             pcu0 = ksolve.radial( ri, ro, self.dr, th0, n_loops, 0 )
             pcu1 = ksolve.radial( ri, ro, self.dr, th0, n_loops, 1 )
@@ -1970,14 +2001,17 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         if not cand_a or not cand_b:
             return None
 
-        r_mid = 0.5 * (float(self.r_coil_in) + float(self.r_coil_out))
+        # Prefer the outer bridge candidate when both inner and outer crossings exist.
+        # In low-height / near-square slots the paired geometry often produces two
+        # valid centerline intersections; the production-stable choice is the outer one.
+        r_target = float(self.r_coil_in) + 0.62 * (float(self.r_coil_out) - float(self.r_coil_in))
         pair_limit = min(8, len(cand_a), len(cand_b))
         pair_candidates = []
         for da, ra in cand_a[:pair_limit]:
             for db, rb in cand_b[:pair_limit]:
                 avg_r = 0.5 * (ra + rb)
                 pair_candidates.append((
-                    (da + db, abs(ra - rb), abs(avg_r - r_mid)),
+                    (da + db, abs(ra - rb), abs(avg_r - r_target), -avg_r),
                     avg_r,
                 ))
         if not pair_candidates:
