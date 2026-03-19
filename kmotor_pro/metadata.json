@@ -33,13 +33,13 @@
     "python": "3.x"
   },
   "release": {
-    "version": "1.4",
+    "version": "1.4.1",
     "channel": "stable",
     "status": "stable",
     "notes": [
-      "Second stable KMotor_Pro milestone for KiCad 9.",
-      "Adds Magnet PCB workflow, winding mode stats, fabrication presets and derived motor constants.",
-      "Includes deterministic center-via fixes and stable Compact/maxSpec controls."
+      "Bugfix release for the KMotor_Pro KiCad 9 stable branch.",
+      "Stabilizes periodic and multi-loop center-via placement in generated coil geometry.",
+      "Keeps the existing Magnet PCB workflow, winding mode stats and fabrication presets."
     ]
   }
 }
