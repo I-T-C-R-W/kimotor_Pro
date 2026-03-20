@@ -5,7 +5,11 @@ Current KiCad 9 GPL fork of KiMotor with deterministic PCB motor generation, ext
 
 
 <img width="2019" height="1338" alt="app _gui" src="https://github.com/user-attachments/assets/8317a611-a607-4ac4-8954-5514a9342c48" />
-![KMotor_Pro Board](app.png)
+
+<img width="2460" height="1239" alt="app_pcb1" src="https://github.com/user-attachments/assets/4ce69b13-9e2f-46b3-be12-5b2dc9732b65" />
+
+<img width="2080" height="1031" alt="app_pcb2" src="https://github.com/user-attachments/assets/e96a14d2-0102-4415-87d2-f8a900257e56" />
+
 
 ## Credits
 
