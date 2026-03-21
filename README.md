@@ -57,9 +57,16 @@ All higher-level motor values are currently shown explicitly as estimates.
 - `3P+N` still needs a final dedicated neutral-routing topology
 - `Compact` is currently a stable workflow/UI mode; its dedicated final geometry solver is still being expanded
 
+
+
 ## Next Steps
 
 - predefined compact / maxSpec coil geometries
 - further magnet-PCB production geometry
 - richer derived motor stats
 - later API-oriented deterministic engine extraction
+
+ 
+## How to install
+  - download latest zipfile
+  - then install "from file" with the kicad-plugin-manager. 
