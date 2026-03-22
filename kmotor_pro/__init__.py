@@ -1,7 +1,8 @@
-# KMotor_Pro is a GPL-2.0-only fork of KiMotor by Stefano Cottafavi.
-# KiCad loads this package on startup to register the ActionPlugin.
-# When imported outside KiCad's embedded Python (e.g. system python),
-# wx/pcbnew are typically unavailable. Keep import side-effects safe.
+# -*- coding: utf-8 -*-
+# KMotor_Pro - Parametric PCB motor generator for KiCad
+# Copyright 2026 I-T-C-R-W
+# SPDX-License-Identifier: GPL-2.0-only
+
 try:
     from .kmotor_api import KMotorProPlugin
 except ModuleNotFoundError:
