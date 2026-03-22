@@ -5,7 +5,9 @@
 
 import math
 import numpy as np
-import wx
+import logging
+
+logger = logging.getLogger(__name__)
 
 # basic
 def vec(t):
@@ -22,6 +24,8 @@ def line_vec(lv):
     dx = p2[0]-p1[0]
     dy = p2[1]-p1[1]
     d = math.sqrt(dx**2 + dy**2)
+    if d < 1e-12:
+        return np.array([1.0, 0.0, 0.0])  # default unit vector for degenerate case
     v = np.array([ dx/d, dy/d, 0])
     return v
 
@@ -246,7 +250,7 @@ def circle_circle_intersect(c1,r1,c2,r2):
     fx = (x1+x2) / 2 + a * (x2 - x1);
     gx = c * (y2 - y1) / 2;
 
-    wx.LogError(f'gx: {gx}')
+    logger.debug(f'gx: {gx}')
 
     #note if gy == 0 and gx == 0 then the circles are tangent and there is only one solution
     #but that one solution will just be duplicated as the code is currently written
@@ -367,6 +371,9 @@ def line_arc_center(t1, t2, f, side=1):
         r = t2.GetRadius() - side*f
 
         c = circle_line_intersect(p1, o, r, 1)
+    else:
+        # fallback: neither track is an arc
+        c = np.array([0.0, 0.0, 0.0])
 
     return c
 

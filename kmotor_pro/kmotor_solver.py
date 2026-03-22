@@ -6,7 +6,6 @@
 import math
 import numpy as np
 from . import kmotor_solvermath as kla
-import wx
 
 def parallel(r1,r2, dr,th,turns,dir):
         """ Compute layout points for coil with sides always aligned to radius
@@ -22,36 +21,43 @@ def parallel(r1,r2, dr,th,turns,dir):
         Returns:
             matrix, matrix, matrix: corners (excl. arc mids), outer arc mids, inner arc mids
         """
-
+        # Pre-compute constants
+        th_half = th / 2
+        cos_th_half = math.cos(th_half)
+        sin_th_half = math.sin(th_half)
+        
         pts = []
         mds = []
         mdsi = []
 
         # points 
         c = [0,0,0]
-        l0 = np.array([ c, [r1*math.cos(th/2), r1*math.sin(th/2), 0] ])
+        l0 = np.array([ c, [r1*cos_th_half, r1*sin_th_half, 0] ])
         l0 = kla.line_offset(l0, -dr)
         
         for turn in range(turns):
+            turn_dr = turn * dr
             # offset line
-            lr = kla.line_offset(l0, -turn*dr)
+            lr = kla.line_offset(l0, -turn_dr)
             # solve corners and order them
-            pc1 = kla.circle_line_intersect(lr, c, r1+turn*dr)
+            r1_inner = r1 + turn_dr
+            r2_outer = r2 - turn_dr
+            pc1 = kla.circle_line_intersect(lr, c, r1_inner)
             pc1 = pc1[0:2]
-            pc2 = kla.circle_line_intersect(lr, c, r2-turn*dr)
+            pc2 = kla.circle_line_intersect(lr, c, r2_outer)
             pc2 = pc2[0:2]
-            pc3 = np.array([ pc2[0],-pc2[1] ])
-            pc4 = np.array([ pc1[0],-pc1[1] ])
+            pc3 = np.array([ pc2[0], -pc2[1] ])
+            pc4 = np.array([ pc1[0], -pc1[1] ])
             if dir == 0:
                 pts.extend([pc1, pc2, pc3, pc4])
             else:
                 pts.extend([pc4, pc3, pc2, pc1])
             
             # solve outer and inner mid-points
-            pm = np.array([ r2-turn*dr, 0 ])
-            pmi = np.array([ r1+turn*dr, 0 ])
-            mds.extend([pm])
-            mdsi.extend([pmi])
+            pm = np.array([ r2_outer, 0 ])
+            pmi = np.array([ r1_inner, 0 ])
+            mds.append(pm)
+            mdsi.append(pmi)
 
         pm = np.matrix(pts)     # points, excl. arc mids
         mm = np.matrix(mds)     # arc (outer) mids only

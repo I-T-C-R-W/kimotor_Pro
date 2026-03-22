@@ -99,11 +99,13 @@ def outline_poly_points(r, n_edge):
     """Generate polygon points for outline."""
     if n_edge < 4:
         return None
-    rp = r / math.cos(math.pi / n_edge)
-    thp = 2 * math.pi / n_edge
+    safe_n = max(n_edge, 1e-9)
+    cos_val = math.cos(math.pi / safe_n)
+    rp = r / max(cos_val, 1e-6)
+    thp = 2 * math.pi / safe_n
     tho = thp / 2
     pts = []
-    for i in range(n_edge):
+    for i in range(int(n_edge)):
         pts.append((
             int(rp * math.cos(i * thp + tho)),
             int(rp * math.sin(i * thp + tho))
@@ -113,6 +115,7 @@ def outline_poly_points(r, n_edge):
 
 def outline_outer_radius(r_out, n_edges):
     """Calculate outer radius including outline edges."""
-    if n_edges == 0:
+    if abs(n_edges) < 1e-9:
         return float(r_out)
-    return float(r_out) / max(math.cos(math.pi / n_edges), 1e-6)
+    cos_val = math.cos(math.pi / max(n_edges, 1e-9))
+    return float(r_out) / max(cos_val, 1e-6)

@@ -1,5 +1,6 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import List, Optional
+import json
 
 # --- 1. TOPOLOGY (Die mathematische DNA) ---
 @dataclass
@@ -116,6 +117,20 @@ class MotorInputConfig:
     rotor: RotorMagnetConfig = field(default_factory=RotorMagnetConfig)
     peripherals: PeripheralsConfig = field(default_factory=PeripheralsConfig)
 
-    # Hier kommen später zwei winzige Helper-Funktionen rein:
-    # def to_json(self) -> str: ...
-    # @classmethod def from_json(cls, json_str: str) -> 'MotorInputConfig': ...
+    def to_json(self) -> str:
+        """Serialize config to JSON string."""
+        return json.dumps(asdict(self), indent=2)
+
+    @classmethod
+    def from_json(cls, json_str: str) -> 'MotorInputConfig':
+        """Deserialize config from JSON string."""
+        data = json.loads(json_str)
+        return cls(
+            version=data.get("version", "1.5"),
+            topology=TopologyConfig(**data.get("topology", {})),
+            mechanics=StatorMechanicsConfig(**data.get("mechanics", {})),
+            coil=CoilLayoutConfig(**data.get("coil", {})),
+            stack=StackPcbConfig(**data.get("stack", {})),
+            rotor=RotorMagnetConfig(**data.get("rotor", {})),
+            peripherals=PeripheralsConfig(**data.get("peripherals", {})),
+        )

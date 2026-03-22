@@ -28,7 +28,137 @@ else:
 
 # KMotorProPlugin moved to kmotor_api.py
 
+from .kmotor_models import (
+    MotorInputConfig,
+    TopologyConfig,
+    StatorMechanicsConfig,
+    CoilLayoutConfig,
+    StackPcbConfig,
+    RotorMagnetConfig,
+    PeripheralsConfig,
+)
+
 class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
+    
+    def to_motor_config(self) -> MotorInputConfig:
+        """Convert GUI parameters to MotorInputConfig."""
+        # Read current GUI parameters
+        self.get_parameters()
+        if hasattr(self, 'm_cbMagShape'):
+            self.get_magnet_parameters()
+        
+        # Map outline type
+        outline_map = {
+            "Circle": "Circle",
+            "Square": "Square", 
+            "Hexagon": "Hexagon",
+            "Octagon": "Octagon",
+            "None": "None"
+        }
+        outline_type = outline_map.get(self.outline, "Circle")
+        
+        # Map scheme to phases
+        scheme = self.m_cbScheme.GetStringSelection() if hasattr(self, 'm_cbScheme') else "3P"
+        if scheme == "1P":
+            phases = 1
+        elif scheme == "3P+N":
+            phases = 3
+        else:
+            phases = 3
+        
+        # Map winding mode
+        winding_mode = getattr(self, 'winding_mode', 'PCB')
+        
+        # Map strategy
+        strategy_map = {0: "Parallel", 1: "Radial", 2: "Compact"}
+        strategy = strategy_map.get(getattr(self, 'strategy', 1), "Radial")
+        
+        # Map magnet shape
+        magnet_shape = getattr(self, 'magnet_shape', 'round').capitalize()
+        
+        # Map terminal type
+        term_type = getattr(self, 'trmtype', 'THT')
+        
+        # Map copper weight
+        copper_weight = getattr(self, 'copper_weight', '1 oz / 35um')
+        
+        # Map mount size
+        mount_size = getattr(self, 'mhs', 'M3')
+        
+        # Create config
+        config = MotorInputConfig(
+            topology=TopologyConfig(
+                scheme=scheme,
+                phases=phases,
+                slots=self.n_slots,
+                pole_pairs=getattr(self, 'magnet_pole_pairs', 30)
+            ),
+            mechanics=StatorMechanicsConfig(
+                outline_type=outline_type,
+                shaft_bore_dia_mm=self.r_in * 2 / self.SCALE,
+                outer_dia_mm=self.r_out * 2 / self.SCALE,
+                corner_fillet_mm=self.o_fill / self.SCALE if hasattr(self, 'o_fill') else 0.0,
+                annular_width_mm=self.w_mnt / self.SCALE,
+                mount_size=mount_size,
+                mount_out_count=self.n_mh_out,
+                mount_out_dia_mm=self.r_mh_out * 2 / self.SCALE,
+                mount_in_count=self.n_mh_in,
+                mount_in_dia_mm=self.r_mh_in * 2 / self.SCALE,
+                corner_hole_count=getattr(self, 'corner_hole_count', 4),
+                corner_hole_dia_mm=getattr(self, 'corner_hole_dia', 0.0) / self.SCALE,
+                corner_hole_offset_mm=getattr(self, 'corner_hole_offset', 0.0) / self.SCALE
+            ),
+            coil=CoilLayoutConfig(
+                winding_mode=winding_mode,
+                strategy=strategy,
+                max_spec_layout=getattr(self, 'max_spec', False),
+                turns_per_layer=self.n_loops,
+                inner_dia_mm=self.r_coil_in * 2 / self.SCALE,
+                outer_dia_mm=self.r_coil_out * 2 / self.SCALE,
+                track_width_mm=self.trk_w / self.SCALE,
+                track_spacing_mm=self.trk_space / self.SCALE,
+                track_fillet_mm=self.r_fill / self.SCALE if hasattr(self, 'r_fill') else 0.0,
+                wire_dia_mm=getattr(self, 'wire_dia_mm', 0.50) if winding_mode == "Wire" else None
+            ),
+            stack=StackPcbConfig(
+                layers=self.n_layers,
+                copper_weight=copper_weight,
+                via_dia_mm=self.d_via / self.SCALE,
+                via_drill_mm=self.d_drill / self.SCALE,
+                support_via_mode=getattr(self, 'support_via_mode', 2),
+                support_hole_dia_mm=self.d_support_hole / self.SCALE,
+                ring_width_mm=self.ring_w / self.SCALE,
+                ring_spacing_mm=self.ring_space / self.SCALE,
+                fill_inner_gnd=getattr(self, 'fill_inner_gnd', True),
+                inner_gnd_dia_mm=getattr(self, 'inner_fill_dia', 0) / self.SCALE,
+                fill_outer_gnd=getattr(self, 'fill_outer_gnd', True)
+            ),
+            rotor=RotorMagnetConfig(
+                shape=magnet_shape,
+                ring_dia_mm=getattr(self, 'magnet_ring_dia', 0.0) / self.SCALE,
+                rotation_offset_deg=getattr(self, 'magnet_rotation', 0.0),
+                dia_mm=getattr(self, 'magnet_dia', 0.0) / self.SCALE if magnet_shape == "Round" else None,
+                width_mm=getattr(self, 'magnet_width', 0.0) / self.SCALE if magnet_shape == "Rect" else None,
+                height_mm=getattr(self, 'magnet_height', 0.0) / self.SCALE if magnet_shape == "Rect" else None,
+                length_mm=getattr(self, 'magnet_length', 0.0) / self.SCALE,
+                gap_mm=getattr(self, 'magnet_gap', 0.0) / self.SCALE,
+                keepout_mm=getattr(self, 'magnet_keepout', 0.0) / self.SCALE,
+                b_gap_est_tesla=getattr(self, 'magnet_b_est', 0.60)
+            ),
+            peripherals=PeripheralsConfig(
+                term_type=term_type,
+                term_size=self.m_termSize.GetStringSelection() if hasattr(self, 'm_termSize') else "1.0",
+                term_offset_mm=self.term_offset / self.SCALE,
+                silk_cross_guides=getattr(self, 'silk_cross_guides', False),
+                silk_slot_frames=getattr(self, 'silk_slot_frames', False),
+                silk_degree_scale=getattr(self, 'silk_deg_scale', False),
+                silk_hole_scales=getattr(self, 'silk_hole_scales', False),
+                corner_scale_step_deg=getattr(self, 'corner_scale_step_deg', 1.0),
+                corner_scale_span_deg=getattr(self, 'corner_scale_span_deg', 5.0)
+            )
+        )
+        
+        return config
 
     group = None
     SCALE = 0
@@ -3047,54 +3177,212 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
     def on_btn_save(self, event):
         self.set_status("Saving preset")
         try:
-            self.pm.SaveAndUnregister()
-            self.pm.RegisterAndRestoreAll(self)
-            with wx.FileDialog(self, "Save KMotor_Pro preset", wildcard="KMT files (*.kmt)|*.kmt",
+            config = self.to_motor_config()
+            json_str = config.to_json()
+            
+            with wx.FileDialog(self, "Save KMotor_Pro preset", 
+                           wildcard="JSON files (*.json)|*.json|KMT files (*.kmt)|*.kmt",
                            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
-                fileDialog.SetFilename("kmotor_pro.kmt")
+                fileDialog.SetFilename("kmotor_pro.json")
                 if fileDialog.ShowModal() == wx.ID_CANCEL:
                     self.set_status("Save cancelled")
                     return
-                origin = self.pf
                 target = fileDialog.GetPath()
-                shutil.copyfile(origin, target)
+                
+                with open(target, 'w', encoding='utf-8') as f:
+                    f.write(json_str)
+            
             self.set_status("Preset saved")
         except Exception as exc:
             self.set_status("Save failed")
             self._log_exception("Preset save failed", exc)
 
+    def _apply_config_to_gui(self, config: MotorInputConfig):
+        """Apply MotorInputConfig values to GUI controls."""
+        try:
+            # Topology
+            if hasattr(self, 'm_cbScheme'):
+                idx = self.m_cbScheme.FindString(config.topology.scheme)
+                if idx != wx.NOT_FOUND:
+                    self.m_cbScheme.SetSelection(idx)
+            if hasattr(self, 'm_ctrlSlots'):
+                self.m_ctrlSlots.SetValue(config.topology.slots)
+            if hasattr(self, 'm_ctrlMagPolePairs'):
+                self.m_ctrlMagPolePairs.SetValue(config.topology.pole_pairs)
+            
+            # Mechanics
+            if hasattr(self, 'm_cbOutline'):
+                idx = self.m_cbOutline.FindString(config.mechanics.outline_type)
+                if idx != wx.NOT_FOUND:
+                    self.m_cbOutline.SetSelection(idx)
+            if hasattr(self, 'm_ctrlDbore'):
+                self.m_ctrlDbore.SetValue(config.mechanics.shaft_bore_dia_mm)
+            if hasattr(self, 'm_ctrlDout'):
+                self.m_ctrlDout.SetValue(config.mechanics.outer_dia_mm)
+            if hasattr(self, 'm_ctrlFilletRadius'):
+                self.m_ctrlFilletRadius.SetValue(config.mechanics.corner_fillet_mm)
+            if hasattr(self, 'm_ctrlWmnt'):
+                self.m_ctrlWmnt.SetValue(config.mechanics.annular_width_mm)
+            if hasattr(self, 'm_cbMountSize'):
+                idx = self.m_cbMountSize.FindString(config.mechanics.mount_size)
+                if idx != wx.NOT_FOUND:
+                    self.m_cbMountSize.SetSelection(idx)
+            if hasattr(self, 'm_mhOut'):
+                self.m_mhOut.SetValue(config.mechanics.mount_out_count)
+            if hasattr(self, 'm_mhOutR'):
+                self.m_mhOutR.SetValue(config.mechanics.mount_out_dia_mm)
+            if hasattr(self, 'm_mhIn'):
+                self.m_mhIn.SetValue(config.mechanics.mount_in_count)
+            if hasattr(self, 'm_mhInR'):
+                self.m_mhInR.SetValue(config.mechanics.mount_in_dia_mm)
+            if hasattr(self, 'm_ctrlCornerHoleCount'):
+                self.m_ctrlCornerHoleCount.SetValue(config.mechanics.corner_hole_count)
+            if hasattr(self, 'm_ctrlCornerHoleDia'):
+                self.m_ctrlCornerHoleDia.SetValue(config.mechanics.corner_hole_dia_mm)
+            if hasattr(self, 'm_ctrlCornerHoleOffset'):
+                self.m_ctrlCornerHoleOffset.SetValue(config.mechanics.corner_hole_offset_mm)
+            
+            # Coil
+            if hasattr(self, 'm_cbWindingMode'):
+                idx = self.m_cbWindingMode.FindString(config.coil.winding_mode)
+                if idx != wx.NOT_FOUND:
+                    self.m_cbWindingMode.SetSelection(idx)
+            if hasattr(self, 'm_cbStrategy'):
+                strategy_map = {"Parallel": 0, "Radial": 1, "Compact": 2}
+                self.m_cbStrategy.SetSelection(strategy_map.get(config.coil.strategy, 1))
+            if hasattr(self, 'm_chkMaxSpec'):
+                self.m_chkMaxSpec.SetValue(config.coil.max_spec_layout)
+            if hasattr(self, 'm_ctrlLoops'):
+                self.m_ctrlLoops.SetValue(config.coil.turns_per_layer)
+            if hasattr(self, 'm_ctrlDin'):
+                self.m_ctrlDin.SetValue(config.coil.inner_dia_mm)
+            if hasattr(self, 'm_ctrlDend'):
+                self.m_ctrlDend.SetValue(config.coil.outer_dia_mm)
+            if hasattr(self, 'm_ctrlTrackWidth'):
+                self.m_ctrlTrackWidth.SetValue(config.coil.track_width_mm)
+            if hasattr(self, 'm_ctrlTrackSpacing'):
+                self.m_ctrlTrackSpacing.SetValue(config.coil.track_spacing_mm)
+            if hasattr(self, 'm_ctrlRfill'):
+                self.m_ctrlRfill.SetValue(config.coil.track_fillet_mm)
+            if hasattr(self, 'm_ctrlWireDia') and config.coil.wire_dia_mm:
+                self.m_ctrlWireDia.SetValue(config.coil.wire_dia_mm)
+            
+            # Stack
+            if hasattr(self, 'm_ctrlLayers'):
+                self.m_ctrlLayers.SetValue(config.stack.layers)
+            if hasattr(self, 'm_cbCopperWeight'):
+                idx = self.m_cbCopperWeight.FindString(config.stack.copper_weight)
+                if idx != wx.NOT_FOUND:
+                    self.m_cbCopperWeight.SetSelection(idx)
+            if hasattr(self, 'm_ctrlViaDia'):
+                self.m_ctrlViaDia.SetValue(config.stack.via_dia_mm)
+            if hasattr(self, 'm_ctrlViaDrill'):
+                self.m_ctrlViaDrill.SetValue(config.stack.via_drill_mm)
+            if hasattr(self, 'm_cbSupportViaMode'):
+                idx = self.m_cbSupportViaMode.FindString(str(config.stack.support_via_mode))
+                if idx != wx.NOT_FOUND:
+                    self.m_cbSupportViaMode.SetSelection(idx)
+            if hasattr(self, 'm_ctrlSupportHoleDia'):
+                self.m_ctrlSupportHoleDia.SetValue(config.stack.support_hole_dia_mm)
+            if hasattr(self, 'm_ctrlRingWidth'):
+                self.m_ctrlRingWidth.SetValue(config.stack.ring_width_mm)
+            if hasattr(self, 'm_ctrlRingSpacing'):
+                self.m_ctrlRingSpacing.SetValue(config.stack.ring_spacing_mm)
+            if hasattr(self, 'm_cbFillInnerGND'):
+                self.m_cbFillInnerGND.SetValue(config.stack.fill_inner_gnd)
+            if hasattr(self, 'm_ctrlInnerGndDia'):
+                self.m_ctrlInnerGndDia.SetValue(config.stack.inner_gnd_dia_mm)
+            if hasattr(self, 'm_cbFillOuterGND'):
+                self.m_cbFillOuterGND.SetValue(config.stack.fill_outer_gnd)
+            
+            # Rotor
+            if hasattr(self, 'm_cbMagShape'):
+                idx = self.m_cbMagShape.FindString(config.rotor.shape)
+                if idx != wx.NOT_FOUND:
+                    self.m_cbMagShape.SetSelection(idx)
+            if hasattr(self, 'm_ctrlMagRingDia'):
+                self.m_ctrlMagRingDia.SetValue(config.rotor.ring_dia_mm)
+            if hasattr(self, 'm_ctrlMagRotation'):
+                self.m_ctrlMagRotation.SetValue(config.rotor.rotation_offset_deg)
+            if hasattr(self, 'm_ctrlMagDia') and config.rotor.dia_mm:
+                self.m_ctrlMagDia.SetValue(config.rotor.dia_mm)
+            if hasattr(self, 'm_ctrlMagWidth') and config.rotor.width_mm:
+                self.m_ctrlMagWidth.SetValue(config.rotor.width_mm)
+            if hasattr(self, 'm_ctrlMagHeight') and config.rotor.height_mm:
+                self.m_ctrlMagHeight.SetValue(config.rotor.height_mm)
+            if hasattr(self, 'm_ctrlMagLength'):
+                self.m_ctrlMagLength.SetValue(config.rotor.length_mm or 0.0)
+            if hasattr(self, 'm_ctrlMagGap'):
+                self.m_ctrlMagGap.SetValue(config.rotor.gap_mm)
+            if hasattr(self, 'm_ctrlMagKeepout'):
+                self.m_ctrlMagKeepout.SetValue(config.rotor.keepout_mm)
+            if hasattr(self, 'm_ctrlMagBest'):
+                self.m_ctrlMagBest.SetValue(config.rotor.b_gap_est_tesla)
+            
+            # Peripherals
+            if hasattr(self, 'm_cbTP'):
+                idx = self.m_cbTP.FindString(config.peripherals.term_type)
+                if idx != wx.NOT_FOUND:
+                    self.m_cbTP.SetSelection(idx)
+            if hasattr(self, 'm_ctrlDterm'):
+                self.m_ctrlDterm.SetValue(config.peripherals.term_offset_mm)
+            if hasattr(self, 'm_cbSilkCross'):
+                self.m_cbSilkCross.SetValue(config.peripherals.silk_cross_guides)
+            if hasattr(self, 'm_cbSilkSlots'):
+                self.m_cbSilkSlots.SetValue(config.peripherals.silk_slot_frames)
+            if hasattr(self, 'm_cbSilkDeg'):
+                self.m_cbSilkDeg.SetValue(config.peripherals.silk_degree_scale)
+            if hasattr(self, 'm_cbSilkHoleScale'):
+                self.m_cbSilkHoleScale.SetValue(config.peripherals.silk_hole_scales)
+            if hasattr(self, 'm_ctrlCornerScaleStep'):
+                self.m_ctrlCornerScaleStep.SetValue(config.peripherals.corner_scale_step_deg)
+            if hasattr(self, 'm_ctrlCornerScaleSpan'):
+                self.m_ctrlCornerScaleSpan.SetValue(config.peripherals.corner_scale_span_deg)
+            
+            # Trigger UI updates
+            self.on_cb_outline(None)
+            self.on_cb_trmtype(None)
+            self.on_cb_winding_mode(None)
+            self.on_cb_magnet_shape(None)
+            if hasattr(self, 'on_nr_layers'):
+                self.on_nr_layers(None)
+                
+        except Exception as exc:
+            self._log_exception("Apply config to GUI failed", exc)
+
     def on_btn_load(self, event):
         self.set_status("Loading preset")
         try:
-            with wx.FileDialog(self, "Load KMotor_Pro preset", wildcard="KMT files (*.kmt)|*.kmt",
-                            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
+            with wx.FileDialog(self, "Load KMotor_Pro preset", 
+                           wildcard="JSON files (*.json)|*.json|KMT files (*.kmt)|*.kmt",
+                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
                 if fileDialog.ShowModal() == wx.ID_CANCEL:
                     self.set_status("Load cancelled")
                     return
                 origin = fileDialog.GetPath()
-                target = self.pf
-                tmp = fileDialog.GetDirectory() + "/kmotor_pro.tmp"
-
-                self.pm.SetPersistenceFile(tmp)
-                self.pm.SaveAndUnregister()
-                shutil.copyfile(origin, target)
-                self.pm.SetPersistenceFile(target)
-                self.pm.RegisterAndRestoreAll(self)
-                self.on_cb_outline(None)
-                self.on_cb_trmtype(None)
-                self.on_cb_winding_mode(None)
-                self.on_cb_magnet_shape(None)
+                
+                # Try JSON format first
+                if origin.lower().endswith('.json'):
+                    with open(origin, 'r', encoding='utf-8') as f:
+                        json_str = f.read()
+                    config = MotorInputConfig.from_json(json_str)
+                    self._apply_config_to_gui(config)
+                else:
+                    # Legacy .kmt format
+                    target = self.pf
+                    tmp = fileDialog.GetDirectory() + "/kmotor_pro.tmp"
+                    self.pm.SetPersistenceFile(tmp)
+                    self.pm.SaveAndUnregister()
+                    shutil.copyfile(origin, target)
+                    self.pm.SetPersistenceFile(target)
+                    self.pm.RegisterAndRestoreAll(self)
+                    self.on_cb_outline(None)
+                    self.on_cb_trmtype(None)
+                    self.on_cb_winding_mode(None)
+                    self.on_cb_magnet_shape(None)
+                
             self.set_status("Preset loaded")
         except Exception as exc:
-            try:
-                self.pm.SetPersistenceFile(self.pf)
-                self.pm.RegisterAndRestoreAll(self)
-                self.on_cb_outline(None)
-                self.on_cb_trmtype(None)
-                self.on_cb_winding_mode(None)
-                self.on_cb_magnet_shape(None)
-            except Exception:
-                pass
             self.set_status("Load failed")
             self._log_exception("Preset load failed", exc)
 
