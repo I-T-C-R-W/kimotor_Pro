@@ -13,8 +13,10 @@
 ###########################################################################
 
 from .kmotor_pro_persist import SpinCtrlDoublePersist
+from .kmotor_models import MotorInputConfig
 import wx
 import wx.xrc
+import shutil
 
 class KMotorProGUI ( wx.Frame ):
 
@@ -82,7 +84,7 @@ class KMotorProGUI ( wx.Frame ):
 
 		bSizer22112.Add( ( 0, 0), 1, wx.EXPAND, 5 )
 
-		self.m_ctrlFilletRadius = SpinCtrlDoublePersist( sbSizer2.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 0, 1000, 3.100000, 0.1, u"m_ctrlFilletRadius" )
+		self.m_ctrlFilletRadius = SpinCtrlDoublePersist( sbSizer2.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 0, 1000, 3, 0.1, u"m_ctrlFilletRadius" )
 		self.m_ctrlFilletRadius.SetDigits( 2 )
 		bSizer22112.Add( self.m_ctrlFilletRadius, 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.EXPAND, 5 )
 
@@ -1360,3 +1362,362 @@ class KMotorProGUI ( wx.Frame ):
 		event.Skip()
 	def on_btn_generate( self, event ):
 		event.Skip()
+
+	# Methods for gui
+
+	def _apply_pcb_preset(self, preset_name):
+		if preset_name == "Custom":
+			return False
+		preset = self.PCB_PRESETS.get(preset_name)
+		if not preset:
+			return False
+
+		self.m_ctrlLayers.SetValue(preset["layers"])
+		self.m_ctrlTrackWidth.SetValue(preset["track_width"])
+		self.m_ctrlTrackSpacing.SetValue(preset["track_spacing"])
+		self.m_ctrlRingWidth.SetValue(preset["ring_width"])
+		self.m_ctrlRingSpacing.SetValue(preset["ring_spacing"])
+		self.m_ctrlViaDia.SetValue(preset["via_dia"])
+		self.m_ctrlViaDrill.SetValue(preset["via_drill"])
+		if hasattr(self, "m_cbCopperWeight"):
+			idx = self.m_cbCopperWeight.FindString(preset["copper_weight"])
+			if idx != wx.NOT_FOUND:
+				self.m_cbCopperWeight.SetSelection(idx)
+		self.on_nr_layers(None)
+		self.on_cb_winding_mode(None)
+		return True
+
+	def on_close(self, event):
+		try:
+			self.pm.SaveAndUnregister()
+		except Exception as exc:
+			self.set_status("Close warning")
+			self._log_exception("Close persistence failed", exc)
+		event.Skip()
+
+	def on_btn_clear(self, event):
+		if self.group:
+			self.group.RemoveAll()
+			self.group = None
+			self.btn_clear.Enable(False)
+		event.Skip()
+
+	def on_btn_generate(self, event):
+		self._run_action(
+			"Started: generation running (can take 5-60 s)",
+			"Finished",
+			"Generation",
+			self.generate,
+		)
+		event.Skip()
+
+	def on_btn_generate_magnet(self, event):
+		self._run_action(
+			"Started: magnet PCB generation running",
+			"Magnet PCB generated",
+			"Magnet PCB generation",
+			self.generate_magnet_pcb,
+			summary_target="magnet",
+		)
+		event.Skip()
+
+	def on_btn_generate_both(self, event):
+		self._run_action(
+			"Started: generation of both PCBs running",
+			"Finished: both PCBs generated",
+			"Both PCBs generation",
+			self.generate_both,
+		)
+		event.Skip()
+
+	def on_btn_save(self, event):
+		self.set_status("Saving preset")
+		try:
+			config = self.to_motor_config()
+			json_str = config.to_json()
+			
+			with wx.FileDialog(self, "Save KMotor_Pro preset", 
+						   wildcard="JSON files (*.json)|*.json|KMT files (*.kmt)|*.kmt",
+						   style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+				fileDialog.SetFilename("kmotor_pro.json")
+				if fileDialog.ShowModal() == wx.ID_CANCEL:
+					self.set_status("Save cancelled")
+					return
+				target = fileDialog.GetPath()
+				
+				with open(target, 'w', encoding='utf-8') as f:
+					f.write(json_str)
+			
+			self.set_status("Preset saved")
+		except Exception as exc:
+			self.set_status("Save failed")
+			self._log_exception("Preset save failed", exc)
+
+	def _apply_config_to_gui(self, config: MotorInputConfig):
+		"""Apply MotorInputConfig values to GUI controls."""
+		try:
+			# Topology
+			if hasattr(self, 'm_cbScheme'):
+				idx = self.m_cbScheme.FindString(config.topology.scheme)
+				if idx != wx.NOT_FOUND:
+					self.m_cbScheme.SetSelection(idx)
+			if hasattr(self, 'm_ctrlSlots'):
+				self.m_ctrlSlots.SetValue(config.topology.slots)
+			if hasattr(self, 'm_ctrlMagPolePairs'):
+				self.m_ctrlMagPolePairs.SetValue(config.topology.pole_pairs)
+			
+			# Mechanics
+			if hasattr(self, 'm_cbOutline'):
+				idx = self.m_cbOutline.FindString(config.mechanics.outline_type)
+				if idx != wx.NOT_FOUND:
+					self.m_cbOutline.SetSelection(idx)
+			if hasattr(self, 'm_ctrlDbore'):
+				self.m_ctrlDbore.SetValue(config.mechanics.shaft_bore_dia_mm)
+			if hasattr(self, 'm_ctrlDout'):
+				self.m_ctrlDout.SetValue(config.mechanics.outer_dia_mm)
+			if hasattr(self, 'm_ctrlFilletRadius'):
+				self.m_ctrlFilletRadius.SetValue(config.mechanics.corner_fillet_mm)
+			if hasattr(self, 'm_ctrlWmnt'):
+				self.m_ctrlWmnt.SetValue(config.mechanics.annular_width_mm)
+			if hasattr(self, 'm_cbMountSize'):
+				idx = self.m_cbMountSize.FindString(config.mechanics.mount_size)
+				if idx != wx.NOT_FOUND:
+					self.m_cbMountSize.SetSelection(idx)
+			if hasattr(self, 'm_mhOut'):
+				self.m_mhOut.SetValue(config.mechanics.mount_out_count)
+			if hasattr(self, 'm_mhOutR'):
+				self.m_mhOutR.SetValue(config.mechanics.mount_out_dia_mm)
+			if hasattr(self, 'm_mhIn'):
+				self.m_mhIn.SetValue(config.mechanics.mount_in_count)
+			if hasattr(self, 'm_mhInR'):
+				self.m_mhInR.SetValue(config.mechanics.mount_in_dia_mm)
+			if hasattr(self, 'm_ctrlCornerHoleCount'):
+				self.m_ctrlCornerHoleCount.SetValue(config.mechanics.corner_hole_count)
+			if hasattr(self, 'm_ctrlCornerHoleDia'):
+				self.m_ctrlCornerHoleDia.SetValue(config.mechanics.corner_hole_dia_mm)
+			if hasattr(self, 'm_ctrlCornerHoleOffset'):
+				self.m_ctrlCornerHoleOffset.SetValue(config.mechanics.corner_hole_offset_mm)
+			
+			# Coil
+			if hasattr(self, 'm_cbWindingMode'):
+				idx = self.m_cbWindingMode.FindString(config.coil.winding_mode)
+				if idx != wx.NOT_FOUND:
+					self.m_cbWindingMode.SetSelection(idx)
+			if hasattr(self, 'm_cbStrategy'):
+				strategy_map = {"Parallel": 0, "Radial": 1, "Compact": 2}
+				self.m_cbStrategy.SetSelection(strategy_map.get(config.coil.strategy, 1))
+			if hasattr(self, 'm_chkMaxSpec'):
+				self.m_chkMaxSpec.SetValue(config.coil.max_spec_layout)
+			if hasattr(self, 'm_ctrlLoops'):
+				self.m_ctrlLoops.SetValue(config.coil.turns_per_layer)
+			if hasattr(self, 'm_ctrlDin'):
+				self.m_ctrlDin.SetValue(config.coil.inner_dia_mm)
+			if hasattr(self, 'm_ctrlDend'):
+				self.m_ctrlDend.SetValue(config.coil.outer_dia_mm)
+			if hasattr(self, 'm_ctrlTrackWidth'):
+				self.m_ctrlTrackWidth.SetValue(config.coil.track_width_mm)
+			if hasattr(self, 'm_ctrlTrackSpacing'):
+				self.m_ctrlTrackSpacing.SetValue(config.coil.track_spacing_mm)
+			if hasattr(self, 'm_ctrlRfill'):
+				self.m_ctrlRfill.SetValue(config.coil.track_fillet_mm)
+			if hasattr(self, 'm_ctrlWireDia') and config.coil.wire_dia_mm:
+				self.m_ctrlWireDia.SetValue(config.coil.wire_dia_mm)
+			
+			# Stack
+			if hasattr(self, 'm_ctrlLayers'):
+				self.m_ctrlLayers.SetValue(config.stack.layers)
+			if hasattr(self, 'm_cbCopperWeight'):
+				idx = self.m_cbCopperWeight.FindString(config.stack.copper_weight)
+				if idx != wx.NOT_FOUND:
+					self.m_cbCopperWeight.SetSelection(idx)
+			if hasattr(self, 'm_ctrlViaDia'):
+				self.m_ctrlViaDia.SetValue(config.stack.via_dia_mm)
+			if hasattr(self, 'm_ctrlViaDrill'):
+				self.m_ctrlViaDrill.SetValue(config.stack.via_drill_mm)
+			if hasattr(self, 'm_cbSupportViaMode'):
+				idx = self.m_cbSupportViaMode.FindString(str(config.stack.support_via_mode))
+				if idx != wx.NOT_FOUND:
+					self.m_cbSupportViaMode.SetSelection(idx)
+			if hasattr(self, 'm_ctrlSupportHoleDia'):
+				self.m_ctrlSupportHoleDia.SetValue(config.stack.support_hole_dia_mm)
+			if hasattr(self, 'm_ctrlRingWidth'):
+				self.m_ctrlRingWidth.SetValue(config.stack.ring_width_mm)
+			if hasattr(self, 'm_ctrlRingSpacing'):
+				self.m_ctrlRingSpacing.SetValue(config.stack.ring_spacing_mm)
+			if hasattr(self, 'm_cbFillInnerGND'):
+				self.m_cbFillInnerGND.SetValue(config.stack.fill_inner_gnd)
+			if hasattr(self, 'm_ctrlInnerGndDia'):
+				self.m_ctrlInnerGndDia.SetValue(config.stack.inner_gnd_dia_mm)
+			if hasattr(self, 'm_cbFillOuterGND'):
+				self.m_cbFillOuterGND.SetValue(config.stack.fill_outer_gnd)
+			
+			# Rotor
+			if hasattr(self, 'm_cbMagShape'):
+				idx = self.m_cbMagShape.FindString(config.rotor.shape)
+				if idx != wx.NOT_FOUND:
+					self.m_cbMagShape.SetSelection(idx)
+			if hasattr(self, 'm_ctrlMagRingDia'):
+				self.m_ctrlMagRingDia.SetValue(config.rotor.ring_dia_mm)
+			if hasattr(self, 'm_ctrlMagRotation'):
+				self.m_ctrlMagRotation.SetValue(config.rotor.rotation_offset_deg)
+			if hasattr(self, 'm_ctrlMagDia') and config.rotor.dia_mm:
+				self.m_ctrlMagDia.SetValue(config.rotor.dia_mm)
+			if hasattr(self, 'm_ctrlMagWidth') and config.rotor.width_mm:
+				self.m_ctrlMagWidth.SetValue(config.rotor.width_mm)
+			if hasattr(self, 'm_ctrlMagHeight') and config.rotor.height_mm:
+				self.m_ctrlMagHeight.SetValue(config.rotor.height_mm)
+			if hasattr(self, 'm_ctrlMagLength'):
+				self.m_ctrlMagLength.SetValue(config.rotor.length_mm or 0.0)
+			if hasattr(self, 'm_ctrlMagGap'):
+				self.m_ctrlMagGap.SetValue(config.rotor.gap_mm)
+			if hasattr(self, 'm_ctrlMagKeepout'):
+				self.m_ctrlMagKeepout.SetValue(config.rotor.keepout_mm)
+			if hasattr(self, 'm_ctrlMagBest'):
+				self.m_ctrlMagBest.SetValue(config.rotor.b_gap_est_tesla)
+			
+			# Peripherals
+			if hasattr(self, 'm_cbTP'):
+				idx = self.m_cbTP.FindString(config.peripherals.term_type)
+				if idx != wx.NOT_FOUND:
+					self.m_cbTP.SetSelection(idx)
+			if hasattr(self, 'm_ctrlDterm'):
+				self.m_ctrlDterm.SetValue(config.peripherals.term_offset_mm)
+			if hasattr(self, 'm_cbSilkCross'):
+				self.m_cbSilkCross.SetValue(config.peripherals.silk_cross_guides)
+			if hasattr(self, 'm_cbSilkSlots'):
+				self.m_cbSilkSlots.SetValue(config.peripherals.silk_slot_frames)
+			if hasattr(self, 'm_cbSilkDeg'):
+				self.m_cbSilkDeg.SetValue(config.peripherals.silk_degree_scale)
+			if hasattr(self, 'm_cbSilkHoleScale'):
+				self.m_cbSilkHoleScale.SetValue(config.peripherals.silk_hole_scales)
+			if hasattr(self, 'm_ctrlCornerScaleStep'):
+				self.m_ctrlCornerScaleStep.SetValue(config.peripherals.corner_scale_step_deg)
+			if hasattr(self, 'm_ctrlCornerScaleSpan'):
+				self.m_ctrlCornerScaleSpan.SetValue(config.peripherals.corner_scale_span_deg)
+			
+			# Trigger UI updates
+			self.on_cb_outline(None)
+			self.on_cb_trmtype(None)
+			self.on_cb_winding_mode(None)
+			self.on_cb_magnet_shape(None)
+			if hasattr(self, 'on_nr_layers'):
+				self.on_nr_layers(None)
+				
+		except Exception as exc:
+			self._log_exception("Apply config to GUI failed", exc)
+
+	def on_btn_load(self, event):
+		self.set_status("Loading preset")
+		try:
+			with wx.FileDialog(self, "Load KMotor_Pro preset", 
+						   wildcard="JSON files (*.json)|*.json|KMT files (*.kmt)|*.kmt",
+						   style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
+				if fileDialog.ShowModal() == wx.ID_CANCEL:
+					self.set_status("Load cancelled")
+					return
+				origin = fileDialog.GetPath()
+				
+				# Try JSON format first
+				if origin.lower().endswith('.json'):
+					with open(origin, 'r', encoding='utf-8') as f:
+						json_str = f.read()
+					config = MotorInputConfig.from_json(json_str)
+					self._apply_config_to_gui(config)
+				else:
+					# Legacy .kmt format
+					target = self.pf
+					tmp = fileDialog.GetDirectory() + "/kmotor_pro.tmp"
+					self.pm.SetPersistenceFile(tmp)
+					self.pm.SaveAndUnregister()
+					shutil.copyfile(origin, target)
+					self.pm.SetPersistenceFile(target)
+					self.pm.RegisterAndRestoreAll(self)
+					self.on_cb_outline(None)
+					self.on_cb_trmtype(None)
+					self.on_cb_winding_mode(None)
+					self.on_cb_magnet_shape(None)
+				
+			self.set_status("Preset loaded")
+		except Exception as exc:
+			self.set_status("Load failed")
+			self._log_exception("Preset load failed", exc)
+
+	def on_cb_preset(self, event):
+		if not hasattr(self, "m_cbPreset"):
+			if event is not None:
+				event.Skip()
+			return
+		preset_name = self.m_cbPreset.GetStringSelection()
+		applied = self._apply_pcb_preset(preset_name)
+		if applied:
+			self.set_status(f"Preset applied: {preset_name}")
+		if event is not None:
+			event.Skip()
+
+	def on_cb_outline(self, event):
+		if self.m_cbOutline.GetStringSelection() == "None":
+			self.m_ctrlDout.Enable(False)
+			self.m_ctrlFilletRadius.Enable(False)
+		elif self.m_cbOutline.GetStringSelection() == "Circle":
+			self.m_ctrlDout.Enable(True)
+			self.m_ctrlFilletRadius.Enable(True)
+		else:
+			self.m_ctrlDout.Enable(True)
+			self.m_ctrlFilletRadius.Enable(True)
+
+		if event is not None:
+			event.Skip()
+
+	def on_cb_trmtype(self, event):
+		pads = self.m_cbTP.GetStringSelection()
+		if pads == "None":
+			self.m_termSize.Enable(False)
+		elif pads == "THT" or pads == "SMD":
+			keys = self.term_db.get(pads).keys()
+			for i,k in enumerate(keys):
+				self.m_termSize.SetString(i,k)
+			while len(keys) < self.m_termSize.GetCount():
+				self.m_termSize.Delete( self.m_termSize.GetCount()-1 )
+			self.m_termSize.SetValue( 
+				self.m_termSize.GetString(
+					self.m_termSize.GetCurrentSelection()))
+			self.m_termSize.Enable(True)
+
+		if event is not None:
+			event.Skip()
+
+	def on_cb_winding_mode(self, event):
+		mode = self.m_cbWindingMode.GetStringSelection() if hasattr(self, "m_cbWindingMode") else "PCB"
+		is_pcb = (mode == "PCB")
+		for ctrl in (self.lbl_copperWeight, self.m_cbCopperWeight):
+			ctrl.Enable(is_pcb)
+		for ctrl in (self.lbl_wireDia, self.m_ctrlWireDia, self.lbl_wireDiaUnit):
+			ctrl.Enable(not is_pcb)
+
+		if event is not None:
+			event.Skip()
+
+	def on_cb_magnet_shape(self, event):
+		shape = self.m_cbMagShape.GetStringSelection() if hasattr(self, "m_cbMagShape") else "Round"
+		is_round = (shape == "Round")
+		for ctrl in (self.lbl_magDia, self.m_ctrlMagDia, self.lbl_magDiaUnit):
+			ctrl.Enable(is_round)
+		for ctrl in (
+			self.lbl_magWidth, self.m_ctrlMagWidth, self.lbl_magWidthUnit,
+			self.lbl_magHeight, self.m_ctrlMagHeight, self.lbl_magHeightUnit,
+		):
+			ctrl.Enable(not is_round)
+		self._update_magnet_summary(
+			"Round magnets use Magnet dia. Rect magnets use width (B) and height (H). "
+			"Use Generate Magnet PCB for a first fit-check against ring diameter and pole count."
+		)
+		if event is not None:
+			event.Skip()
+
+	def on_cb_mholes(self, event):
+		event.Skip()
+
+	def on_nr_layers(self, event):
+		self.n_layers = int(self.m_ctrlLayers.GetValue())
+		if event is not None:
+			event.Skip()
