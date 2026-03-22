@@ -3,3 +3,5 @@ __pycache__/
 old*.py
 dist/
 Archiv/
+save_bacjup/
+save_backup/
