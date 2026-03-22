@@ -1,0 +1,91 @@
+Repo path:
+`/home/deradmin/.local/share/kicad/9.0/3rdparty/plugins/com_github_cooked_kimotor`
+
+GitHub repo:
+`git@github.com:I-T-C-R-W/kimotor_Pro.git`
+
+Active branch:
+`kimotor_pro-transition`
+
+Active dev tree:
+`kmotor_pro/`
+
+Test install mirror:
+`/home/deradmin/.local/share/kicad/9.0/3rdparty/plugins/com_github_itcrw_kmotor-pro`
+
+GitHub CLI:
+- `gh` is installed
+- `gh` is authenticated
+- issue and release operations already work
+
+Current stable release:
+- `v1.4.1`
+- GitHub release exists
+- ZIP install works in KiCad
+
+Current State : 
+in the Git readme are new pictures uploaded which are lokally not reflected in the folder. 
+we need to rebase, but in the local folder is the  refactor_scec.md which should not be deleted.
+It must be used as basline for the work.
+
+Current stable status:
+- plugin loads correctly in KiCad
+- Magnet PCB tab works
+- Generate / Generate Magnet PCB / Generate Both work
+- winding mode (`PCB` / `Wire`) exists
+- PCB fabrication presets exist
+- `Ke / Kt / Kv` and derived estimates exist
+- periodic center-via regression fixed
+- multi-loop center-via issue stabilized enough for release
+- extra inward via offset is NOT solved and should not be treated as done
+
+Important recent commits:
+- `08d4eea` Prepare v1.4.1 release
+- `eade323` Stabilize multi-loop center via placement
+- `d61f1c9` Fix periodic center via selection
+- `7fe0f5b` Re-enable PCB fabrication presets
+- `20ab6d8` Add derived winding and speed stats
+- `66c1d8b` Refine derived stats validation
+
+Open issues:
+- `#4` winding mode model
+- `#6` coil-shape / maxSpec
+- `#9` contextual help panel
+- `#10` PCB backside parameter labeling
+- `#11` validate derived stats against actual generated geometry
+- `#12` fix center via placement for multi-loop coil geometry
+
+Important: there are also two larger refactor issues/spec topics to keep in view later:
+- modular refactor toward separated solver / geometry / kicad / gui architecture
+- cleanup toward deterministic headless-capable pipeline
+- local spec exists and should be treated as architectural anchor
+
+Local architecture spec:
+- `REFACTOR_SPEC.md` exists in the user’s local work folder
+- it defines the target modular architecture
+- do not start broad refactor work without using that spec as baseline
+
+Important context for #12:
+- several heuristic attempts failed
+- current stable solution uses shared discrete rails from both coil halves
+- do NOT casually rewrite center-via logic
+- if refining it, work from current stable baseline, not from older heuristic experiments
+
+Important repo structure:
+- `kmotor_pro/` is the only active development tree
+- release mirror code tree is no longer the maintained source path
+- `Vendorclasses/` exists in `kmotor_pro/Vendorclasses`
+- vendor class JSONs are templates only, values still need to be filled in manually
+
+User preferences:
+- make small focused changes
+- mirror to test folder
+- let user test in KiCad
+- do NOT commit geometry-sensitive changes until user confirms with screenshot/test
+- keep communication concise and factual
+
+If working on geometry:
+- preserve working behavior unless the fix is explicit
+- avoid broad refactors during bugfix passes
+- prefer deterministic geometric rules over vague candidate heuristics
+
