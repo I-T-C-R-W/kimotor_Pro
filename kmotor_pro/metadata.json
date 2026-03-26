@@ -33,13 +33,13 @@
     "python": "3.x"
   },
   "release": {
-    "version": "1.4.1",
+    "version": "1.4.2",
     "channel": "stable",
     "status": "stable",
     "notes": [
-      "Bugfix release for the KMotor_Pro KiCad 9 stable branch.",
-      "Stabilizes periodic and multi-loop center-via placement in generated coil geometry.",
-      "Keeps the existing Magnet PCB workflow, winding mode stats and fabrication presets."
+      "Stable hotfix release restoring the proven pre-refactor KiCad 9 branch.",
+      "Keeps the proven pre-refactor plugin bootstrap and stable ZIP installation path.",
+      "Retains the established Magnet PCB workflow, winding stats and fabrication presets."
     ]
   }
 }
