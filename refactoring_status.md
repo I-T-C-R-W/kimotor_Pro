@@ -36,6 +36,8 @@
 - Small pure parameter-derivation helpers now live in `kmotor_solver.py`: `get_parameters()` delegates outline edge resolution, phase/terminal scheme mapping, and support-via mode normalization to solver helpers.
 - Repeated widget-read patterns are now centralized in `kmotor_pro_persist.py`: `get_parameters()` and `get_magnet_parameters()` use small helpers like `read_selection(...)`, `read_int(...)`, `read_float(...)`, `read_scaled(...)`, and `read_toggle(...)`.
 - More scaled and radius-based GUI reads now go through `kmotor_pro_persist.py` helpers, so `get_parameters()` is mostly orchestration instead of inline widget conversion math.
+- Remaining UI-read edge cases now use shared persist helpers too: selection index, fallback combo selection, and nonnegative scaled reads are centralized in `kmotor_pro_persist.py`.
+- Magnet parameter assignment is now centralized through `assign_attributes(...)` in `kmotor_pro_persist.py`, so `get_magnet_parameters()` only reads values and applies the normalized solver result.
 - Validation so far: `python3 -m py_compile` passes for the touched modules.
 - Additional KiCad delegation completed on 2026-03-26:
   - `_add_silk_arc_ticks`, `_add_local_tick_fan`, `_iter_outer_mount_points`

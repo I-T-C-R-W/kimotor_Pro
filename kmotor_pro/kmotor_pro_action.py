@@ -571,8 +571,8 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         self.copper_thickness_m = self.COPPER_WEIGHT_TO_THICKNESS_M.get(self.copper_weight, self.tthick)
         self.wire_dia_mm = kpers.read_float(getattr(self, "m_ctrlWireDia", None), 0.50)
         
-        self.strategy = self.m_cbStrategy.GetSelection()
-        self.max_spec = bool(self.m_chkMaxSpec.GetValue()) if hasattr(self, "m_chkMaxSpec") else False
+        self.strategy = kpers.read_index(self.m_cbStrategy)
+        self.max_spec = kpers.read_toggle(primary=getattr(self, "m_chkMaxSpec", None))
 
         self.trk_w = kpers.read_scaled(self.m_ctrlTrackWidth, self.SCALE)
         self.trk_space = kpers.read_scaled(self.m_ctrlTrackSpacing, self.SCALE)
@@ -587,12 +587,11 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         self.d_support_hole = kpers.read_scaled(getattr(self, "m_ctrlSupportHoleDia", None), self.SCALE, self.d_drill / self.SCALE) if hasattr(self, "m_ctrlSupportHoleDia") else self.d_drill
 
         self.via_rows = 2
-        if hasattr(self, "m_cbSupportViaMode"):
-            support_via_value = self.m_cbSupportViaMode.GetStringSelection()
-        elif hasattr(self, "m_cbSupportVias"):
-            support_via_value = self.m_cbSupportVias.GetStringSelection()
-        else:
-            support_via_value = 2
+        support_via_value = kpers.read_selection_with_fallback(
+            getattr(self, "m_cbSupportViaMode", None),
+            getattr(self, "m_cbSupportVias", None),
+            2,
+        )
         self.support_via_mode = ksolve.normalize_support_via_mode(support_via_value)
 
         if hasattr(self, "m_cbFillInnerGND"):
@@ -617,7 +616,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         self.corner_scale_step_deg = kpers.read_float(getattr(self, "m_ctrlCornerScaleStep", None), 1.0)
         self.corner_scale_span_deg = kpers.read_float(getattr(self, "m_ctrlCornerScaleSpan", None), 5.0)
         if hasattr(self, "m_ctrlInnerGndDia"):
-            self.inner_fill_dia = int(max(0.0, kpers.read_float(self.m_ctrlInnerGndDia)) * self.SCALE)
+            self.inner_fill_dia = kpers.read_nonnegative_scaled(self.m_ctrlInnerGndDia, self.SCALE)
         else:
             self.inner_fill_dia = 0
 
@@ -732,18 +731,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             magnet_rotation=kpers.read_float(self.m_ctrlMagRotation),
             magnet_b_est=kpers.read_float(getattr(self, "m_ctrlMagBest", None), 0.60),
         )
-        self.magnet_shape = params["magnet_shape"]
-        self.magnet_dia = params["magnet_dia"]
-        self.magnet_width = params["magnet_width"]
-        self.magnet_height = params["magnet_height"]
-        self.magnet_length = params["magnet_length"]
-        self.magnet_ring_dia = params["magnet_ring_dia"]
-        self.magnet_pole_pairs = params["magnet_pole_pairs"]
-        self.magnet_gap = params["magnet_gap"]
-        self.magnet_keepout = params["magnet_keepout"]
-        self.magnet_rotation = params["magnet_rotation"]
-        self.magnet_b_est = params["magnet_b_est"]
-        self.magnet_poles = params["magnet_poles"]
+        kpers.assign_attributes(self, params)
 
     def validate_magnet_parameters(self):
         self.get_magnet_parameters()

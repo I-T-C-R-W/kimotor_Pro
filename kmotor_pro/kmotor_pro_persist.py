@@ -196,6 +196,27 @@ def read_toggle(primary=None, fallback=None, default=False):
     return bool(ctrl.GetValue())
 
 
+def read_index(ctrl, default=0):
+    if ctrl is None:
+        return default
+    return ctrl.GetSelection()
+
+
+def read_selection_with_fallback(primary=None, fallback=None, default=""):
+    ctrl = primary if primary is not None else fallback
+    return read_selection(ctrl, default)
+
+
+def read_nonnegative_scaled(ctrl, scale, default=0.0):
+    return int(max(0.0, read_float(ctrl, default)) * scale)
+
+
+def assign_attributes(target, values):
+    for key, value in values.items():
+        setattr(target, key, value)
+    return target
+
+
 def save_preset_dialog(parent, json_str, default_filename="kmotor_pro.json"):
     with wx.FileDialog(
         parent,
