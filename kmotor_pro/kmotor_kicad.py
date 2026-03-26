@@ -265,6 +265,11 @@ def create_magnet_group(board, name='magnet_pcb'):
     return group
 
 
+def reset_magnet_group(board, magnet_group, name='magnet_pcb'):
+    clear_magnet_group(board, magnet_group)
+    return create_magnet_group(board, name=name)
+
+
 def add_mounting_hole_fp_at(board, group, center_xy, fp_lib, fp_name, ref, fpoint, net=None):
     """Load a footprint, place it, and optionally attach it to a group."""
     fp = pcbnew.FootprintLoad(fp_lib, fp_name)

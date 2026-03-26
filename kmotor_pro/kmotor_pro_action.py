@@ -793,7 +793,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             self.r_coil_out,
             self.SCALE,
             self.n_slots,
-            getattr(self, "magnet_b_est", 0.60),
+            kpers.get_attr(self, "magnet_b_est", 0.60),
         )
 
     def estimate_winding_factor(self):
@@ -829,8 +829,8 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         return ksolve.estimate_model_warnings(
             stats,
             perf_stats,
-            getattr(self, "magnet_b_est", 0.0),
-            getattr(self, "magnet_poles", 0),
+            kpers.get_attr(self, "magnet_b_est", 0.0),
+            kpers.get_attr(self, "magnet_poles", 0),
         )
 
     def get_effective_coil_strategy(self, ri, ro, n_slots, n_loops):
@@ -841,16 +841,19 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             n_loops,
             self.dr,
             self.trk_w,
-            getattr(self, "strategy", 1),
-            getattr(self, "max_spec", False),
+            kpers.get_attr(self, "strategy", 1),
+            kpers.get_attr(self, "max_spec", False),
         )
 
     def _clear_magnet_group(self):
         self.magnet_group = kkicad.clear_magnet_group(self.board, getattr(self, 'magnet_group', None))
 
     def _create_magnet_group(self):
-        self._clear_magnet_group()
-        self.magnet_group = kkicad.create_magnet_group(self.board, name='magnet_pcb')
+        self.magnet_group = kkicad.reset_magnet_group(
+            self.board,
+            getattr(self, 'magnet_group', None),
+            name='magnet_pcb',
+        )
         return self.magnet_group
 
     def _add_mounting_hole_fp_at(self, group, center_xy, fp_lib, fp_name, ref, net=None):

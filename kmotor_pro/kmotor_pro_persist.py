@@ -232,6 +232,10 @@ def resolve_stats(stats, fallback):
     return stats or {}
 
 
+def get_attr(obj, name, default=None):
+    return getattr(obj, name, default)
+
+
 def save_preset_dialog(parent, json_str, default_filename="kmotor_pro.json"):
     with wx.FileDialog(
         parent,

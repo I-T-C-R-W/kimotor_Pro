@@ -40,6 +40,8 @@
 - Magnet parameter assignment is now centralized through `assign_attributes(...)` in `kmotor_pro_persist.py`, so `get_magnet_parameters()` only reads values and applies the normalized solver result.
 - Repeated model-input preparation for estimate helpers is now centralized in `kmotor_pro_persist.py` via `prepare_model_inputs(...)`, trimming duplicate try/except setup in the controller.
 - Estimate helpers now share `resolve_stats(...)` from `kmotor_pro_persist.py`, removing another pair of duplicated `last_stats` fallback blocks from the controller.
+- Magnet-group reset/create orchestration is now centralized in `kmotor_kicad.py` via `reset_magnet_group(...)`, trimming another two-step controller helper.
+- Tiny attribute fallback lookups in estimate/strategy helpers now use `get_attr(...)` from `kmotor_pro_persist.py`, removing another handful of inline `getattr(...)` calls from the controller.
 - Validation so far: `python3 -m py_compile` passes for the touched modules.
 - Additional KiCad delegation completed on 2026-03-26:
   - `_add_silk_arc_ticks`, `_add_local_tick_fan`, `_iter_outer_mount_points`
