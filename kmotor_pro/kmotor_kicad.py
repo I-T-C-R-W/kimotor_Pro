@@ -486,6 +486,11 @@ def build_offset_outline(board, group, origin_xy, r_in, r_out, n_edges, SCALE, o
         add_grouped_segment(group, start, end, pcbnew.Edge_Cuts, max(1, 0.09 * SCALE))
 
 
+def build_magnet_cross_guides(group, origin_xy, outer_radius, add_grouped_silk_segment):
+    add_grouped_silk_segment(group, (origin_xy[0] - outer_radius, origin_xy[1]), (origin_xy[0] + outer_radius, origin_xy[1]))
+    add_grouped_silk_segment(group, (origin_xy[0], origin_xy[1] - outer_radius), (origin_xy[0], origin_xy[1] + outer_radius))
+
+
 def build_magnet_markers(group, origin_xy, magnet_poles, magnet_ring_dia, magnet_rotation, magnet_shape, magnet_dia, magnet_width, magnet_height, magnet_keepout, SCALE, add_grouped_silk_circle, add_grouped_circle, add_grouped_rect_outline, get_aux_layer):
     """Render magnet body and keepout markers for the offset magnet board."""
     if magnet_poles <= 0:

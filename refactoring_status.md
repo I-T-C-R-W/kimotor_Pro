@@ -42,6 +42,11 @@
 - Estimate helpers now share `resolve_stats(...)` from `kmotor_pro_persist.py`, removing another pair of duplicated `last_stats` fallback blocks from the controller.
 - Magnet-group reset/create orchestration is now centralized in `kmotor_kicad.py` via `reset_magnet_group(...)`, trimming another two-step controller helper.
 - Tiny attribute fallback lookups in estimate/strategy helpers now use `get_attr(...)` from `kmotor_pro_persist.py`, removing another handful of inline `getattr(...)` calls from the controller.
+- Magnet PCB result text is now formatted in `kmotor_pro_persist.py` via `format_magnet_generation_summary(...)`, keeping `generate_magnet_pcb()` focused on orchestration.
+- Optional magnet cross-guide rendering is now delegated to `kmotor_kicad.py` via `build_magnet_cross_guides(...)`, trimming one more render-only block from `generate_magnet_pcb()`.
+- Basic board net bootstrap now lives in `kmotor_pro_persist.py` via `ensure_named_nets(...)`, so `init_nets()` is down to a thin controller call.
+- The missing-footprint-dir error message now lives in `kmotor_pro_persist.py` via `log_missing_footprint_dir(...)`, shaving one more tiny UI/logging branch out of `init_path()`.
+- `init_path()` now shares footprint env-key selection and path normalization through `footprint_env_keys(...)` and `normalize_dir_path(...)` in `kmotor_pro_persist.py`.
 - Validation so far: `python3 -m py_compile` passes for the touched modules.
 - Additional KiCad delegation completed on 2026-03-26:
   - `_add_silk_arc_ticks`, `_add_local_tick_fan`, `_iter_outer_mount_points`

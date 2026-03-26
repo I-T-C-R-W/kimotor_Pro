@@ -236,6 +236,45 @@ def get_attr(obj, name, default=None):
     return getattr(obj, name, default)
 
 
+def ensure_named_nets(board, *net_names):
+    for name in net_names:
+        net = board.FindNet(name)
+        if net is None:
+            net = pcbnew.NETINFO_ITEM(board, name)
+            board.Add(net)
+
+
+def footprint_env_keys(kicad_version):
+    return (
+        f"KICAD{kicad_version}_FOOTPRINT_DIR",
+        "KICAD_FOOTPRINT_DIR",
+        "KICAD6_FOOTPRINT_DIR",
+    )
+
+
+def normalize_dir_path(path):
+    if path is None:
+        return None
+    return os.path.normpath(path) + os.sep
+
+
+def log_missing_footprint_dir(kicad_version):
+    wx.LogError(
+        f"Footprint library not found. Expected KICAD{kicad_version}_FOOTPRINT_DIR or KICAD_FOOTPRINT_DIR."
+    )
+
+
+def format_magnet_generation_summary(origin_x, scale, magnet_poles, magnet_ring_dia, warnings=None):
+    summary = (
+        f"Magnet PCB generated at +{origin_x / scale:.2f} mm X offset.\n"
+        f"Poles: {magnet_poles}\n"
+        f"Ring dia: {magnet_ring_dia / scale:.2f} mm"
+    )
+    if warnings:
+        summary += "\nWarnings:\n- " + "\n- ".join(warnings)
+    return summary
+
+
 def save_preset_dialog(parent, json_str, default_filename="kmotor_pro.json"):
     with wx.FileDialog(
         parent,

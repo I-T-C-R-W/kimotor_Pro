@@ -966,17 +966,20 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         self._build_magnet_markers(group, origin_xy)
 
         if getattr(self, "silk_cross_guides", False):
-            outer = float(self.r_out)
-            self._add_grouped_silk_segment(group, (origin_xy[0] - outer, origin_xy[1]), (origin_xy[0] + outer, origin_xy[1]))
-            self._add_grouped_silk_segment(group, (origin_xy[0], origin_xy[1] - outer), (origin_xy[0], origin_xy[1] + outer))
+            kkicad.build_magnet_cross_guides(
+                group,
+                origin_xy,
+                float(self.r_out),
+                self._add_grouped_silk_segment,
+            )
 
-        summary = (
-            f"Magnet PCB generated at +{origin_xy[0] / self.SCALE:.2f} mm X offset.\n"
-            f"Poles: {self.magnet_poles}\n"
-            f"Ring dia: {self.magnet_ring_dia / self.SCALE:.2f} mm"
+        summary = kpers.format_magnet_generation_summary(
+            origin_xy[0],
+            self.SCALE,
+            self.magnet_poles,
+            self.magnet_ring_dia,
+            warnings,
         )
-        if warnings:
-            summary += "\nWarnings:\n- " + "\n- ".join(warnings)
         self._update_magnet_summary(summary)
 
     def init_path(self):
@@ -986,12 +989,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             with open(settings+'/kicad_common.json', 'r') as f:
                 data = json.load(f)
                 env_vars = data.get("environment", {}).get("vars") or {}
-                fp_keys = [
-                    f"KICAD{self.KICAD_VERSION}_FOOTPRINT_DIR",
-                    "KICAD_FOOTPRINT_DIR",
-                    "KICAD6_FOOTPRINT_DIR",
-                ]
-                for key in fp_keys:
+                for key in kpers.footprint_env_keys(self.KICAD_VERSION):
                     if env_vars.get(key):
                         self.fp_path = env_vars[key]
                         break
@@ -1000,32 +998,18 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             return
 
         if self.fp_path is None:
-            for key in (
-                f"KICAD{self.KICAD_VERSION}_FOOTPRINT_DIR",
-                "KICAD_FOOTPRINT_DIR",
-                "KICAD6_FOOTPRINT_DIR",
-            ):
+            for key in kpers.footprint_env_keys(self.KICAD_VERSION):
                 self.fp_path = os.getenv(key, default=None)
                 if self.fp_path:
                     break
 
         if self.fp_path is not None:
-            self.fp_path = os.path.normpath(self.fp_path) + os.sep
+            self.fp_path = kpers.normalize_dir_path(self.fp_path)
         else:
-            wx.LogError(
-                f"Footprint library not found. Expected KICAD{self.KICAD_VERSION}_FOOTPRINT_DIR or KICAD_FOOTPRINT_DIR."
-            )
+            kpers.log_missing_footprint_dir(self.KICAD_VERSION)
 
     def init_nets(self):
-        gnd = self.board.FindNet("gnd")
-        if gnd is None:
-            gnd = pcbnew.NETINFO_ITEM(self.board, "gnd")
-            self.board.Add(gnd)
-            
-        coil = self.board.FindNet("coil")
-        if coil is None:
-            coil = pcbnew.NETINFO_ITEM(self.board, "coil")
-            self.board.Add(coil)
+        kpers.ensure_named_nets(self.board, "gnd", "coil")
 
     def udpate_lset(self, n_layers):
         lset =[pcbnew.F_Cu]
