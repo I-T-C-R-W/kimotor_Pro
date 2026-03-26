@@ -309,6 +309,52 @@ def log_missing_footprint_dir(kicad_version):
     )
 
 
+def format_generation_report(stats, perf_stats, warnings, active_coil_style_name):
+    return (
+        "Finished\n"
+        "Model: estimated, geometry + B gap assumption based\n"
+        f"Length total: {stats['total_length_mm']:.2f} mm\n"
+        f"Copper total: {stats['copper_length_total_m']:.3f} m\n"
+        f"Length / phase: {stats['phase_len_mm']:.2f} mm\n"
+        f"Length / coil: {stats['coil_length_per_coil_mm']:.2f} mm\n"
+        f"Coil style active: {active_coil_style_name}\n"
+        f"Turns / layer est: {stats['turns_per_layer_est']:.2f}\n"
+        f"Length rings total: {stats['ring_length_mm']:.2f} mm\n"
+        f"R total: {stats['total_resistance']:.4f} ohm\n"
+        f"R / phase: {stats['phase_r_temp']:.4f} ohm\n"
+        f"R / coil: {stats['coil_resistance_per_coil']:.4f} ohm\n"
+        f"R rings total: {stats['ring_resistance_total']:.4f} ohm\n"
+        f"kw est: {perf_stats['winding_factor_est']:.3f}\n"
+        f"No-load RPM @ 12V est: {perf_stats['rpm_12v_est']:.0f}\n"
+        f"Stall current est: {perf_stats['stall_current_est']:.2f} A\n"
+        f"Stall torque est: {perf_stats['stall_torque_est']:.4f} Nm"
+        + (f"\nWarnings: {', '.join(warnings)}" if warnings else "")
+    )
+
+
+def generation_status_text(warnings):
+    warnings = warnings or []
+    return "Finished" if not warnings else f"Finished ({', '.join(warnings)})"
+
+
+def generation_failure_message(exc):
+    return f"Generierung fehlgeschlagen:\n{exc}"
+
+
+def read_temperature(ctrl, default=20.0):
+    return read_float(ctrl, default)
+
+
+def build_generation_warnings(skipped, via_skipped, model_warnings):
+    warnings = []
+    if int(skipped) > 0:
+        warnings.append(f"support holes skipped: {int(skipped)}")
+    if int(via_skipped) > 0:
+        warnings.append(f"center vias skipped: {int(via_skipped)}")
+    warnings.extend(model_warnings or [])
+    return warnings
+
+
 def format_magnet_generation_summary(origin_x, scale, magnet_poles, magnet_ring_dia, warnings=None):
     summary = (
         f"Magnet PCB generated at +{origin_x / scale:.2f} mm X offset.\n"

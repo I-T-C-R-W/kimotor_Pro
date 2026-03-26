@@ -1087,7 +1087,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             
             kpers.refresh_board_view(self.board)
 
-            temp = self.m_ambT.GetValue()
+            temp = kpers.read_temperature(self.m_ambT)
             stats = self.calculate_stats_breakdown(self.board, net_name="coil", temp=temp)
             self.last_stats = stats
             self.tl = stats["phase_len_mm"]
@@ -1125,38 +1125,25 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             self.btn_clear.Enable(True)
             skipped = int(getattr(self, "support_hole_collision_count", 0))
             via_skipped = int(getattr(self, "center_via_warning_count", 0))
-            warnings = []
-            if skipped > 0:
-                warnings.append(f"support holes skipped: {skipped}")
-            if via_skipped > 0:
-                warnings.append(f"center vias skipped: {via_skipped}")
-            warnings.extend(self.estimate_model_warnings(stats, motor_consts, perf_stats))
-            self.set_status("Finished" if not warnings else f"Finished ({', '.join(warnings)})")
+            warnings = kpers.build_generation_warnings(
+                skipped,
+                via_skipped,
+                self.estimate_model_warnings(stats, motor_consts, perf_stats),
+            )
+            self.set_status(kpers.generation_status_text(warnings))
             if hasattr(self, "m_txtStatus") and self.m_txtStatus:
                 self.m_txtStatus.SetValue(
-                    "Finished\n"
-                    "Model: estimated, geometry + B gap assumption based\n"
-                    f"Length total: {stats['total_length_mm']:.2f} mm\n"
-                    f"Copper total: {stats['copper_length_total_m']:.3f} m\n"
-                    f"Length / phase: {stats['phase_len_mm']:.2f} mm\n"
-                    f"Length / coil: {stats['coil_length_per_coil_mm']:.2f} mm\n"
-                    f"Coil style active: {getattr(self, 'active_coil_style_name', 'Radial')}\n"
-                    f"Turns / layer est: {stats['turns_per_layer_est']:.2f}\n"
-                    f"Length rings total: {stats['ring_length_mm']:.2f} mm\n"
-                    f"R total: {stats['total_resistance']:.4f} ohm\n"
-                    f"R / phase: {stats['phase_r_temp']:.4f} ohm\n"
-                    f"R / coil: {stats['coil_resistance_per_coil']:.4f} ohm\n"
-                    f"R rings total: {stats['ring_resistance_total']:.4f} ohm\n"
-                    f"kw est: {perf_stats['winding_factor_est']:.3f}\n"
-                    f"No-load RPM @ 12V est: {perf_stats['rpm_12v_est']:.0f}\n"
-                    f"Stall current est: {perf_stats['stall_current_est']:.2f} A\n"
-                    f"Stall torque est: {perf_stats['stall_torque_est']:.4f} Nm"
-                    + (f"\nWarnings: {', '.join(warnings)}" if warnings else "")
+                    kpers.format_generation_report(
+                        stats,
+                        perf_stats,
+                        warnings,
+                        getattr(self, 'active_coil_style_name', 'Radial'),
+                    )
                 )
         except Exception as e:
             self.set_status("Failed")
             wx.MessageBox(
-                f"Generierung fehlgeschlagen:\n{e}",
+                kpers.generation_failure_message(e),
                 "KMotor_Pro Fehler",
                 wx.OK | wx.ICON_ERROR
             )

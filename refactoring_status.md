@@ -53,6 +53,10 @@
 - `init_path()` now also uses `first_present_env(...)` and `log_missing_settings_file()` from `kmotor_pro_persist.py`, removing the last two tiny open-coded branches in that setup path.
 - The pre-routing geometry collision check in `generate()` now lives in `kmotor_solver.py` via `validate_generate_geometry(...)`, leaving only the UI error handling in the controller.
 - The repeated board connectivity/refresh/UI-update cycle in `generate()` now goes through `refresh_board_view(...)` in `kmotor_pro_persist.py`.
+- Final generate warnings are now composed via `build_generation_warnings(...)` in `kmotor_pro_persist.py` instead of being assembled inline.
+- The final generate status line is now formatted through `generation_status_text(...)` in `kmotor_pro_persist.py`.
+- The large multi-line generate report is now formatted in `kmotor_pro_persist.py` via `format_generation_report(...)`.
+- The ambient-temperature read and generate failure message now also use tiny helpers in `kmotor_pro_persist.py` (`read_temperature(...)`, `generation_failure_message(...)`).
 - Validation so far: `python3 -m py_compile` passes for the touched modules.
 - Additional KiCad delegation completed on 2026-03-26:
   - `_add_silk_arc_ticks`, `_add_local_tick_fan`, `_iter_outer_mount_points`
