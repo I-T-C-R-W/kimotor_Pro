@@ -22,6 +22,8 @@ if __name__ == '__main__':
     import kmotor_kicad as kkicad
     import kmotor_pro_gui
     import kmotor_pro_linalg as kla
+    import kmotor_pro_persist as kpers
+    import kmotor_pro_solver as ksolve
 else:
     from . import kmotor_geometry as kgeo
     from . import kmotor_kicad as kkicad
@@ -46,123 +48,70 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
     
     def to_motor_config(self) -> MotorInputConfig:
         """Convert GUI parameters to MotorInputConfig."""
-        # Read current GUI parameters
         self.get_parameters()
         if hasattr(self, 'm_cbMagShape'):
             self.get_magnet_parameters()
-        
-        # Map outline type
-        outline_map = {
-            "Circle": "Circle",
-            "Square": "Square", 
-            "Hexagon": "Hexagon",
-            "Octagon": "Octagon",
-            "None": "None"
-        }
-        outline_type = outline_map.get(self.outline, "Circle")
-        
-        # Map scheme to phases
         scheme = self.m_cbScheme.GetStringSelection() if hasattr(self, 'm_cbScheme') else "3P"
-        if scheme == "1P":
-            phases = 1
-        elif scheme == "3P+N":
-            phases = 3
-        else:
-            phases = 3
-        
-        # Map winding mode
-        winding_mode = getattr(self, 'winding_mode', 'PCB')
-        
-        # Map strategy
-        strategy_map = {0: "Parallel", 1: "Radial", 2: "Compact"}
-        strategy = strategy_map.get(getattr(self, 'strategy', 1), "Radial")
-        
-        # Map magnet shape
-        magnet_shape = getattr(self, 'magnet_shape', 'round').capitalize()
-        
-        # Map terminal type
-        term_type = getattr(self, 'trmtype', 'THT')
-        
-        # Map copper weight
-        copper_weight = getattr(self, 'copper_weight', '1 oz / 35um')
-        
-        # Map mount size
-        mount_size = getattr(self, 'mhs', 'M3')
-        
-        # Create config
-        config = MotorInputConfig(
-            topology=TopologyConfig(
-                scheme=scheme,
-                phases=phases,
-                slots=self.n_slots,
-                pole_pairs=getattr(self, 'magnet_pole_pairs', 30)
-            ),
-            mechanics=StatorMechanicsConfig(
-                outline_type=outline_type,
-                shaft_bore_dia_mm=self.r_in * 2 / self.SCALE,
-                outer_dia_mm=self.r_out * 2 / self.SCALE,
-                corner_fillet_mm=self.o_fill / self.SCALE if hasattr(self, 'o_fill') else 0.0,
-                annular_width_mm=self.w_mnt / self.SCALE,
-                mount_size=mount_size,
-                mount_out_count=self.n_mh_out,
-                mount_out_dia_mm=self.r_mh_out * 2 / self.SCALE,
-                mount_in_count=self.n_mh_in,
-                mount_in_dia_mm=self.r_mh_in * 2 / self.SCALE,
-                corner_hole_count=getattr(self, 'corner_hole_count', 4),
-                corner_hole_dia_mm=getattr(self, 'corner_hole_dia', 0.0) / self.SCALE,
-                corner_hole_offset_mm=getattr(self, 'corner_hole_offset', 0.0) / self.SCALE
-            ),
-            coil=CoilLayoutConfig(
-                winding_mode=winding_mode,
-                strategy=strategy,
-                max_spec_layout=getattr(self, 'max_spec', False),
-                turns_per_layer=self.n_loops,
-                inner_dia_mm=self.r_coil_in * 2 / self.SCALE,
-                outer_dia_mm=self.r_coil_out * 2 / self.SCALE,
-                track_width_mm=self.trk_w / self.SCALE,
-                track_spacing_mm=self.trk_space / self.SCALE,
-                track_fillet_mm=self.r_fill / self.SCALE if hasattr(self, 'r_fill') else 0.0,
-                wire_dia_mm=getattr(self, 'wire_dia_mm', 0.50) if winding_mode == "Wire" else None
-            ),
-            stack=StackPcbConfig(
-                layers=self.n_layers,
-                copper_weight=copper_weight,
-                via_dia_mm=self.d_via / self.SCALE,
-                via_drill_mm=self.d_drill / self.SCALE,
-                support_via_mode=getattr(self, 'support_via_mode', 2),
-                support_hole_dia_mm=self.d_support_hole / self.SCALE,
-                ring_width_mm=self.ring_w / self.SCALE,
-                ring_spacing_mm=self.ring_space / self.SCALE,
-                fill_inner_gnd=getattr(self, 'fill_inner_gnd', True),
-                inner_gnd_dia_mm=getattr(self, 'inner_fill_dia', 0) / self.SCALE,
-                fill_outer_gnd=getattr(self, 'fill_outer_gnd', True)
-            ),
-            rotor=RotorMagnetConfig(
-                shape=magnet_shape,
-                ring_dia_mm=getattr(self, 'magnet_ring_dia', 0.0) / self.SCALE,
-                rotation_offset_deg=getattr(self, 'magnet_rotation', 0.0),
-                dia_mm=getattr(self, 'magnet_dia', 0.0) / self.SCALE if magnet_shape == "Round" else None,
-                width_mm=getattr(self, 'magnet_width', 0.0) / self.SCALE if magnet_shape == "Rect" else None,
-                height_mm=getattr(self, 'magnet_height', 0.0) / self.SCALE if magnet_shape == "Rect" else None,
-                length_mm=getattr(self, 'magnet_length', 0.0) / self.SCALE,
-                gap_mm=getattr(self, 'magnet_gap', 0.0) / self.SCALE,
-                keepout_mm=getattr(self, 'magnet_keepout', 0.0) / self.SCALE,
-                b_gap_est_tesla=getattr(self, 'magnet_b_est', 0.60)
-            ),
-            peripherals=PeripheralsConfig(
-                term_type=term_type,
-                term_size=self.m_termSize.GetStringSelection() if hasattr(self, 'm_termSize') else "1.0",
-                term_offset_mm=self.term_offset / self.SCALE,
-                silk_cross_guides=getattr(self, 'silk_cross_guides', False),
-                silk_slot_frames=getattr(self, 'silk_slot_frames', False),
-                silk_degree_scale=getattr(self, 'silk_deg_scale', False),
-                silk_hole_scales=getattr(self, 'silk_hole_scales', False),
-                corner_scale_step_deg=getattr(self, 'corner_scale_step_deg', 1.0),
-                corner_scale_span_deg=getattr(self, 'corner_scale_span_deg', 5.0)
-            )
+        term_size = self.m_termSize.GetStringSelection() if hasattr(self, 'm_termSize') else "1.0"
+        return ksolve.build_motor_config(
+            scheme=scheme,
+            outline=self.outline,
+            n_slots=self.n_slots,
+            magnet_pole_pairs=getattr(self, 'magnet_pole_pairs', 30),
+            scale=self.SCALE,
+            r_in=self.r_in,
+            r_out=self.r_out,
+            o_fill=getattr(self, 'o_fill', 0.0),
+            w_mnt=self.w_mnt,
+            mhs=getattr(self, 'mhs', 'M3'),
+            n_mh_out=self.n_mh_out,
+            r_mh_out=self.r_mh_out,
+            n_mh_in=self.n_mh_in,
+            r_mh_in=self.r_mh_in,
+            corner_hole_count=getattr(self, 'corner_hole_count', 4),
+            corner_hole_dia=getattr(self, 'corner_hole_dia', 0.0),
+            corner_hole_offset=getattr(self, 'corner_hole_offset', 0.0),
+            winding_mode=getattr(self, 'winding_mode', 'PCB'),
+            strategy=getattr(self, 'strategy', 1),
+            max_spec=getattr(self, 'max_spec', False),
+            n_loops=self.n_loops,
+            r_coil_in=self.r_coil_in,
+            r_coil_out=self.r_coil_out,
+            trk_w=self.trk_w,
+            trk_space=self.trk_space,
+            r_fill=getattr(self, 'r_fill', 0.0),
+            wire_dia_mm=getattr(self, 'wire_dia_mm', 0.50),
+            n_layers=self.n_layers,
+            copper_weight=getattr(self, 'copper_weight', '1 oz / 35um'),
+            d_via=self.d_via,
+            d_drill=self.d_drill,
+            support_via_mode=getattr(self, 'support_via_mode', 2),
+            d_support_hole=self.d_support_hole,
+            ring_w=self.ring_w,
+            ring_space=self.ring_space,
+            fill_inner_gnd=getattr(self, 'fill_inner_gnd', True),
+            inner_fill_dia=getattr(self, 'inner_fill_dia', 0),
+            fill_outer_gnd=getattr(self, 'fill_outer_gnd', True),
+            magnet_shape=getattr(self, 'magnet_shape', 'round'),
+            magnet_ring_dia=getattr(self, 'magnet_ring_dia', 0.0),
+            magnet_rotation=getattr(self, 'magnet_rotation', 0.0),
+            magnet_dia=getattr(self, 'magnet_dia', 0.0),
+            magnet_width=getattr(self, 'magnet_width', 0.0),
+            magnet_height=getattr(self, 'magnet_height', 0.0),
+            magnet_length=getattr(self, 'magnet_length', 0.0),
+            magnet_gap=getattr(self, 'magnet_gap', 0.0),
+            magnet_keepout=getattr(self, 'magnet_keepout', 0.0),
+            magnet_b_est=getattr(self, 'magnet_b_est', 0.60),
+            trmtype=getattr(self, 'trmtype', 'THT'),
+            term_size=term_size,
+            term_offset=self.term_offset,
+            silk_cross_guides=getattr(self, 'silk_cross_guides', False),
+            silk_slot_frames=getattr(self, 'silk_slot_frames', False),
+            silk_deg_scale=getattr(self, 'silk_deg_scale', False),
+            silk_hole_scales=getattr(self, 'silk_hole_scales', False),
+            corner_scale_step_deg=getattr(self, 'corner_scale_step_deg', 1.0),
+            corner_scale_span_deg=getattr(self, 'corner_scale_span_deg', 5.0),
         )
-        
-        return config
 
     group = None
     SCALE = 0
@@ -321,15 +270,10 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         self.set_status("Ready")
     
     def eda_angle(self,angle):
-        if self.KICAD_VERSION < 7:
-            return angle *180/math.pi *100
-        else:
-            return pcbnew.EDA_ANGLE(angle, pcbnew.RADIANS_T)
+        return kpers.eda_angle(angle, self.KICAD_VERSION)
 
     def init_persist(self, configFile):
-        self.pm = PM.PersistenceManager.Get()
-        self.pm.SetPersistenceFile(configFile)
-        self.pm.RegisterAndRestoreAll(self)
+        self.pm = kpers.init_persist(self, configFile)
 
     def _point_xy(self, pt):
         return kgeo.point_xy(pt)
@@ -419,11 +363,10 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         return kgeo.offset_xy(xy, origin_xy)
 
     def _get_board_span(self):
-        return 2.0 * float(self.r_out)
+        return ksolve.get_board_span(self.r_out)
 
     def _get_magnet_board_origin(self):
-        span = self._get_board_span()
-        return (span * 1.1, 0.0)
+        return ksolve.get_magnet_board_origin(self._get_board_span())
 
     def _get_pcb_text_position(self, text_size):
         margin = max(2.0 * text_size, 1.2 * self.SCALE)
@@ -528,79 +471,20 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         )
 
     def _add_linear_hole_scale(self, center_xy, radial_angle, hole_radius):
-        cx, cy = center_xy
-        radial = np.array([math.cos(radial_angle), math.sin(radial_angle)])
-        axis_dir = np.array([math.cos(radial_angle), math.sin(radial_angle)])
-        perp_dir = np.array([-math.sin(radial_angle), math.cos(radial_angle)])
-        inward = -radial
         step_deg = max(0.1, float(getattr(self, "corner_scale_step_deg", 1.0)))
         base_hole_count = max(1, int(getattr(self, "corner_hole_count", 4)))
         angle_span = float(getattr(self, "corner_scale_span_deg", 5.0))
-        auto_hole_count = max(3, int(round((2.0 * angle_span) / step_deg)) + 1)
-        hole_count = max(base_hole_count, auto_hole_count)
-
-        arc_radius = math.hypot(cx, cy)
-        hole_arc_center = np.array([0.0, 0.0])
-        hole_angles = np.linspace(
-            radial_angle - math.radians(angle_span),
-            radial_angle + math.radians(angle_span),
-            hole_count,
-        )
-        hole_positions = []
-        for hole_idx, angle in enumerate(hole_angles):
-            hc = hole_arc_center + np.array([arc_radius * math.cos(angle), arc_radius * math.sin(angle)])
-            hole_positions.append(hc)
-            self._add_npth_hole_at((hc[0], hc[1]), hole_radius, hole_idx)
-
-        # Base construction:
-        # - 0deg hole center is the offset point
-        # - helper line is parallel to the corner diagonal and shifted inward by r_hole
-        # - holes stay on the outer side of the helper line
-        # - coarse/fine marks stand perpendicular on the inner side of that helper line
-        base_hole_center = np.array([cx, cy])
-        helper_center = base_hole_center + inward * (hole_radius + 0.25 * self.SCALE)
-        helper_half_len = max(1.2 * self.SCALE, 0.8 * hole_radius)
-        p0 = helper_center - axis_dir * helper_half_len
-        p1 = helper_center + axis_dir * helper_half_len
-        self._add_silk_segment(
-            tuple(p0),
-            tuple(p1),
-            width=max(1, 0.10 * self.SCALE),
-            clip_to_outline=True,
-            clip_margin=0.35 * self.SCALE,
-        )
-
-        def add_rotated_line_block(step_deg_local, span_deg_local, tick_len, width):
-            count = max(1, int(round(span_deg_local / step_deg_local)))
-            base_anchor = helper_center
-            base_q0 = tuple(base_anchor)
-            base_q1 = tuple(base_anchor + inward * tick_len)
-            for idx in range(-count, count + 1):
-                delta = math.radians(idx * step_deg_local)
-                q0 = self._rotate_xy(base_q0, delta)
-                q1 = self._rotate_xy(base_q1, delta)
-                self._add_silk_segment(
-                    q0,
-                    q1,
-                    width=width,
-                    clip_to_outline=True,
-                    clip_margin=0.35 * self.SCALE,
-                )
-
-        # Coarse degree marks: 1 degree, longer lines, opposite side of the helper line.
-        add_rotated_line_block(
-            1.0,
-            angle_span,
-            tick_len=max(7.0 * self.SCALE, 4.0 * hole_radius),
-            width=max(1, 0.08 * self.SCALE),
-        )
-
-        # Fine degree marks: current step, short lines close to the helper line.
-        add_rotated_line_block(
+        return kkicad.add_linear_hole_scale(
+            self._add_npth_hole_at,
+            self._add_silk_segment,
+            self._rotate_xy,
+            self.SCALE,
+            center_xy,
+            radial_angle,
+            hole_radius,
             step_deg,
+            base_hole_count,
             angle_span,
-            tick_len=max(2.2 * self.SCALE, 1.2 * hole_radius),
-            width=max(1, 0.10 * self.SCALE),
         )
 
     def _iter_outer_mount_points(self):
@@ -672,108 +556,87 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
 
     def get_parameters(self):
         self.outline = self.m_cbOutline.GetStringSelection()
-        if self.outline=="Circle":
-            self.n_edges = 0
-        elif self.outline=="Square":
-            self.n_edges = 4
-        elif self.outline=="Hexagon":
-            self.n_edges = 6
-        elif self.outline=="Octagon":
-            self.n_edges = 8
-        else:
-            self.n_edges = -1
+        self.n_edges = ksolve.resolve_outline_edges(self.outline)
 
-        self.trmtype = self.m_cbTP.GetStringSelection()
-        scheme = self.m_cbScheme.GetStringSelection()
-        if scheme == "1P":
-            self.phases = 1
-            self.n_term = 2
-        elif scheme == "3P+N":
-            self.phases = 3
-            self.n_term = 4
-        else:
-            self.phases = 3
-            self.n_term = 3
+        self.trmtype = kpers.read_selection(self.m_cbTP)
+        scheme = kpers.read_selection(self.m_cbScheme)
+        self.phases, self.n_term = ksolve.resolve_phase_scheme(scheme)
         
-        self.n_layers = int(self.m_ctrlLayers.GetValue())
+        self.n_layers = kpers.read_int(self.m_ctrlLayers)
         self.lset = self.udpate_lset(self.n_layers)
-        self.n_loops  = int(self.m_ctrlLoops.GetValue())
-        self.n_slots  = int(self.m_ctrlSlots.GetValue())
-        self.winding_mode = self.m_cbWindingMode.GetStringSelection() if hasattr(self, "m_cbWindingMode") else "PCB"
-        self.copper_weight = self.m_cbCopperWeight.GetStringSelection() if hasattr(self, "m_cbCopperWeight") else "1 oz / 35um"
+        self.n_loops = kpers.read_int(self.m_ctrlLoops)
+        self.n_slots = kpers.read_int(self.m_ctrlSlots)
+        self.winding_mode = kpers.read_selection(getattr(self, "m_cbWindingMode", None), "PCB")
+        self.copper_weight = kpers.read_selection(getattr(self, "m_cbCopperWeight", None), "1 oz / 35um")
         self.copper_thickness_m = self.COPPER_WEIGHT_TO_THICKNESS_M.get(self.copper_weight, self.tthick)
-        self.wire_dia_mm = float(self.m_ctrlWireDia.GetValue()) if hasattr(self, "m_ctrlWireDia") else 0.50
+        self.wire_dia_mm = kpers.read_float(getattr(self, "m_ctrlWireDia", None), 0.50)
         
         self.strategy = self.m_cbStrategy.GetSelection()
         self.max_spec = bool(self.m_chkMaxSpec.GetValue()) if hasattr(self, "m_chkMaxSpec") else False
 
-        self.trk_w = int(self.m_ctrlTrackWidth.GetValue() * self.SCALE) 
-        self.trk_space = int(self.m_ctrlTrackSpacing.GetValue() * self.SCALE) 
+        self.trk_w = kpers.read_scaled(self.m_ctrlTrackWidth, self.SCALE)
+        self.trk_space = kpers.read_scaled(self.m_ctrlTrackSpacing, self.SCALE)
         self.dr = self.trk_w + self.trk_space
         
-        self.ring_w = int(self.m_ctrlRingWidth.GetValue() * self.SCALE)
-        self.ring_space = int(self.m_ctrlRingSpacing.GetValue() * self.SCALE)
+        self.ring_w = kpers.read_scaled(self.m_ctrlRingWidth, self.SCALE)
+        self.ring_space = kpers.read_scaled(self.m_ctrlRingSpacing, self.SCALE)
         self.ring_dr = self.ring_w + self.ring_space
 
-        self.d_via = int(self.m_ctrlViaDia.GetValue() * self.SCALE)   
-        self.d_drill = int(self.m_ctrlViaDrill.GetValue() * self.SCALE) 
-        self.d_support_hole = int(self.m_ctrlSupportHoleDia.GetValue() * self.SCALE) if hasattr(self, "m_ctrlSupportHoleDia") else self.d_drill
+        self.d_via = kpers.read_scaled(self.m_ctrlViaDia, self.SCALE)
+        self.d_drill = kpers.read_scaled(self.m_ctrlViaDrill, self.SCALE)
+        self.d_support_hole = kpers.read_scaled(getattr(self, "m_ctrlSupportHoleDia", None), self.SCALE, self.d_drill / self.SCALE) if hasattr(self, "m_ctrlSupportHoleDia") else self.d_drill
 
         self.via_rows = 2
-        try:
-            if hasattr(self, "m_cbSupportViaMode"):
-                self.support_via_mode = int(self.m_cbSupportViaMode.GetStringSelection())
-            elif hasattr(self, "m_cbSupportVias"):
-                self.support_via_mode = int(self.m_cbSupportVias.GetStringSelection())
-            else:
-                self.support_via_mode = 2
-        except (ValueError, TypeError):
-            self.support_via_mode = 2
-        if self.support_via_mode not in (0, 2, 4):
-            self.support_via_mode = 2
+        if hasattr(self, "m_cbSupportViaMode"):
+            support_via_value = self.m_cbSupportViaMode.GetStringSelection()
+        elif hasattr(self, "m_cbSupportVias"):
+            support_via_value = self.m_cbSupportVias.GetStringSelection()
+        else:
+            support_via_value = 2
+        self.support_via_mode = ksolve.normalize_support_via_mode(support_via_value)
 
         if hasattr(self, "m_cbFillInnerGND"):
-            self.fill_inner_gnd = bool(self.m_cbFillInnerGND.IsChecked() if hasattr(self.m_cbFillInnerGND, "IsChecked") else self.m_cbFillInnerGND.GetValue())
+            self.fill_inner_gnd = kpers.read_toggle(primary=self.m_cbFillInnerGND)
         elif hasattr(self, "m_chkFillInnerGnd"):
-            self.fill_inner_gnd = bool(self.m_chkFillInnerGnd.IsChecked() if hasattr(self.m_chkFillInnerGnd, "IsChecked") else self.m_chkFillInnerGnd.GetValue())
+            self.fill_inner_gnd = kpers.read_toggle(primary=self.m_chkFillInnerGnd)
         else:
             self.fill_inner_gnd = True
         if hasattr(self, "m_cbFillOuterGND"):
-            self.fill_outer_gnd = bool(self.m_cbFillOuterGND.IsChecked() if hasattr(self.m_cbFillOuterGND, "IsChecked") else self.m_cbFillOuterGND.GetValue())
+            self.fill_outer_gnd = kpers.read_toggle(primary=self.m_cbFillOuterGND)
         elif hasattr(self, "m_chkFillOuterGnd"):
-            self.fill_outer_gnd = bool(self.m_chkFillOuterGnd.IsChecked() if hasattr(self.m_chkFillOuterGnd, "IsChecked") else self.m_chkFillOuterGnd.GetValue())
+            self.fill_outer_gnd = kpers.read_toggle(primary=self.m_chkFillOuterGnd)
         else:
             self.fill_outer_gnd = True
-        self.silk_cross_guides = bool(self.m_cbSilkCross.GetValue()) if hasattr(self, "m_cbSilkCross") else False
-        self.silk_deg_scale = bool(self.m_cbSilkDeg.GetValue()) if hasattr(self, "m_cbSilkDeg") else False
-        self.silk_slot_frames = bool(self.m_cbSilkSlots.GetValue()) if hasattr(self, "m_cbSilkSlots") else False
-        self.silk_hole_scales = bool(self.m_cbSilkHoleScale.GetValue()) if hasattr(self, "m_cbSilkHoleScale") else False
-        self.corner_hole_offset = float(self.m_ctrlCornerHoleOffset.GetValue()) * self.SCALE if hasattr(self, "m_ctrlCornerHoleOffset") else 0.0
-        self.corner_hole_dia = float(self.m_ctrlCornerHoleDia.GetValue()) * self.SCALE if hasattr(self, "m_ctrlCornerHoleDia") else 0.0
-        self.corner_hole_count = int(self.m_ctrlCornerHoleCount.GetValue()) if hasattr(self, "m_ctrlCornerHoleCount") else 4
-        self.corner_scale_step_deg = float(self.m_ctrlCornerScaleStep.GetValue()) if hasattr(self, "m_ctrlCornerScaleStep") else 1.0
-        self.corner_scale_span_deg = float(self.m_ctrlCornerScaleSpan.GetValue()) if hasattr(self, "m_ctrlCornerScaleSpan") else 5.0
+        self.silk_cross_guides = kpers.read_toggle(primary=getattr(self, "m_cbSilkCross", None))
+        self.silk_deg_scale = kpers.read_toggle(primary=getattr(self, "m_cbSilkDeg", None))
+        self.silk_slot_frames = kpers.read_toggle(primary=getattr(self, "m_cbSilkSlots", None))
+        self.silk_hole_scales = kpers.read_toggle(primary=getattr(self, "m_cbSilkHoleScale", None))
+        self.corner_hole_offset = kpers.read_scaled(getattr(self, "m_ctrlCornerHoleOffset", None), self.SCALE)
+        self.corner_hole_dia = kpers.read_scaled(getattr(self, "m_ctrlCornerHoleDia", None), self.SCALE)
+        self.corner_hole_count = kpers.read_int(getattr(self, "m_ctrlCornerHoleCount", None), 4)
+        self.corner_scale_step_deg = kpers.read_float(getattr(self, "m_ctrlCornerScaleStep", None), 1.0)
+        self.corner_scale_span_deg = kpers.read_float(getattr(self, "m_ctrlCornerScaleSpan", None), 5.0)
         if hasattr(self, "m_ctrlInnerGndDia"):
-            self.inner_fill_dia = int(max(0.0, float(self.m_ctrlInnerGndDia.GetValue())) * self.SCALE)
+            self.inner_fill_dia = int(max(0.0, kpers.read_float(self.m_ctrlInnerGndDia)) * self.SCALE)
         else:
             self.inner_fill_dia = 0
 
-        self.r_fill = int(self.m_ctrlRfill.GetValue() * self.SCALE)         
-        self.o_fill = int(self.m_ctrlFilletRadius.GetValue() * self.SCALE)  
+        self.r_fill = kpers.read_scaled(self.m_ctrlRfill, self.SCALE)
+        self.o_fill = kpers.read_scaled(self.m_ctrlFilletRadius, self.SCALE)
 
-        self.r_in = int(self.m_ctrlDbore.GetValue() /2 * self.SCALE)
-        self.r_out = int(self.m_ctrlDout.GetValue() /2 * self.SCALE) 
-        self.r_coil_in = int(self.m_ctrlDin.GetValue() /2 * self.SCALE )
-        self.r_coil_out = int(self.m_ctrlDend.GetValue() /2 * self.SCALE )
+        self.r_in = kpers.read_scaled_radius(self.m_ctrlDbore, self.SCALE)
+        self.r_out = kpers.read_scaled_radius(self.m_ctrlDout, self.SCALE)
+        self.r_coil_in = kpers.read_scaled_radius(self.m_ctrlDin, self.SCALE)
+        self.r_coil_out = kpers.read_scaled_radius(self.m_ctrlDend, self.SCALE)
         
-        self.w_mnt = int(self.m_ctrlWmnt.GetValue() * self.SCALE) 
-        self.term_offset = int(self.m_ctrlDterm.GetValue() * self.SCALE)
+        self.w_mnt = kpers.read_scaled(self.m_ctrlWmnt, self.SCALE)
+        self.term_offset = kpers.read_scaled(self.m_ctrlDterm, self.SCALE)
         
-        self.mhs = self.m_cbMountSize.GetStringSelection()
-        self.n_mh_out = int(self.m_mhOut.GetValue())
-        self.r_mh_out = int(self.m_mhOutR.GetValue() /2 * self.SCALE)
-        self.n_mh_in = int(self.m_mhIn.GetValue())
-        self.r_mh_in = int(self.m_mhInR.GetValue() /2 * self.SCALE)
+        self.mhs = kpers.read_selection(self.m_cbMountSize)
+        self.n_mh_out = kpers.read_int(self.m_mhOut)
+        self.r_mh_out = kpers.read_scaled_radius(self.m_mhOutR, self.SCALE)
+        self.n_mh_in = kpers.read_int(self.m_mhIn)
+        self.r_mh_in = kpers.read_scaled_radius(self.m_mhInR, self.SCALE)
 
         self.txt_size = int(0.5 * self.SCALE)
         self.txt_loc = int(self.r_out - 3*self.txt_size)
@@ -782,265 +645,152 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             self.btn_clear.Enable(True)
 
     def _effective_winding_layers(self):
-        return max(int(getattr(self, "n_layers", 1)), 1)
+        return ksolve.effective_winding_layers(getattr(self, "n_layers", 1))
 
     def _winding_pitch_mm(self):
-        if getattr(self, "winding_mode", "PCB") == "Wire":
-            return max(self.wire_dia_mm + (self.trk_space / self.SCALE), self.wire_dia_mm, 1e-6)
-        return max((self.trk_w + self.trk_space) / self.SCALE, 1e-6)
+        return ksolve.winding_pitch_mm(
+            getattr(self, "winding_mode", "PCB"),
+            getattr(self, "wire_dia_mm", 0.50),
+            self.trk_space,
+            self.trk_w,
+            self.SCALE,
+        )
 
     def _estimate_turns_per_layer(self):
-        active_span_mm = max((self.r_coil_out - self.r_coil_in) / self.SCALE, 0.0)
-        layers = self._effective_winding_layers()
-        pitch_mm = self._winding_pitch_mm()
-        capacity = max(int(math.floor(active_span_mm / max(pitch_mm, 1e-6))), 0)
-        turns_per_layer = self.n_loops / max(layers, 1)
-        return {
-            "turns_per_layer_est": turns_per_layer,
-            "turn_capacity_per_layer_est": capacity,
-            "effective_layers": layers,
-            "active_span_mm": active_span_mm,
-            "pitch_mm": pitch_mm,
-        }
+        return ksolve.estimate_turns_per_layer(
+            self.r_coil_in,
+            self.r_coil_out,
+            self.SCALE,
+            self._effective_winding_layers(),
+            self._winding_pitch_mm(),
+            self.n_loops,
+        )
 
     def _apply_pcb_preset(self, preset_name):
-        if preset_name == "Custom":
-            return False
-        preset = self.PCB_PRESETS.get(preset_name)
+        preset = kpers.resolve_pcb_preset(preset_name, self.PCB_PRESETS)
         if not preset:
             return False
 
-        self.m_ctrlLayers.SetValue(preset["layers"])
-        self.m_ctrlTrackWidth.SetValue(preset["track_width"])
-        self.m_ctrlTrackSpacing.SetValue(preset["track_spacing"])
-        self.m_ctrlRingWidth.SetValue(preset["ring_width"])
-        self.m_ctrlRingSpacing.SetValue(preset["ring_spacing"])
-        self.m_ctrlViaDia.SetValue(preset["via_dia"])
-        self.m_ctrlViaDrill.SetValue(preset["via_drill"])
-        if hasattr(self, "m_cbCopperWeight"):
-            idx = self.m_cbCopperWeight.FindString(preset["copper_weight"])
-            if idx != wx.NOT_FOUND:
-                self.m_cbCopperWeight.SetSelection(idx)
-        self.on_nr_layers(None)
-        self.on_cb_winding_mode(None)
+        kpers.apply_pcb_preset_values(
+            preset,
+            self.m_ctrlLayers,
+            self.m_ctrlTrackWidth,
+            self.m_ctrlTrackSpacing,
+            self.m_ctrlRingWidth,
+            self.m_ctrlRingSpacing,
+            self.m_ctrlViaDia,
+            self.m_ctrlViaDrill,
+            getattr(self, "m_cbCopperWeight", None),
+        )
+        kpers.run_event_callbacks(self.on_nr_layers, self.on_cb_winding_mode)
         return True
 
     def set_status(self, text):
-        ts = datetime.now().strftime("%H:%M:%S")
-        if hasattr(self, "lbl_status") and self.lbl_status:
-            self.lbl_status.SetLabel(str(text))
-            self.lbl_status.GetParent().Layout()
-        if hasattr(self, "m_txtStatus") and self.m_txtStatus:
-            self.m_txtStatus.SetValue(f"[{ts}] {text}")
+        kpers.set_status(self, text)
 
     def _format_exception(self, exc):
-        msg = str(exc).strip()
-        return msg if msg else exc.__class__.__name__
+        return kpers.format_exception(exc)
 
     def _log_exception(self, title, exc):
-        detail = self._format_exception(exc)
-        tb = traceback.format_exc().strip()
-        if tb:
-            wx.LogError(f"{title}:\n{detail}\n\n{tb}")
-        else:
-            wx.LogError(f"{title}:\n{detail}")
+        return kpers.log_exception(title, exc, self._format_exception)
 
     def _safe_ui_yield(self):
-        try:
-            self.Update()
-            wx.YieldIfNeeded()
-        except Exception:
-            pass
+        return kpers.safe_ui_yield(self)
 
     def _safe_refresh_board(self):
-        try:
-            self.board.BuildConnectivity()
-        except Exception:
-            pass
-        try:
-            pcbnew.Refresh()
-        except Exception:
-            pass
-        try:
-            pcbnew.UpdateUserInterface()
-        except Exception:
-            pass
+        return kpers.safe_refresh_board(self.board)
 
     def _run_action(self, start_status, success_status, title, callback, summary_target=None):
-        self.set_status(start_status)
-        self._safe_ui_yield()
-        try:
-            result = callback()
-            self._safe_refresh_board()
-            self.set_status(success_status)
-            return result
-        except Exception as exc:
-            message = self._format_exception(exc)
-            self.set_status(f"{title} failed")
-            if summary_target == "magnet":
-                self._update_magnet_summary(message)
-            self._log_exception(f"{title} failed", exc)
-            return None
+        return kpers.run_action(
+            start_status,
+            success_status,
+            title,
+            callback,
+            self.set_status,
+            self._safe_ui_yield,
+            self._safe_refresh_board,
+            self._format_exception,
+            self._log_exception,
+            update_magnet_summary=self._update_magnet_summary,
+            summary_target=summary_target,
+        )
 
     def validate_parameters(self):
-        errors = []
-        if self.n_slots <= 0:
-            errors.append("n_slots muss > 0 sein.")
-        if self.n_loops <= 0:
-            errors.append("n_loops muss > 0 sein.")
-        if self.n_slots < self.phases:
-            errors.append(f"n_slots ({self.n_slots}) muss mindestens phases ({self.phases}) sein.")
-        if self.n_slots % self.phases != 0:
-            errors.append(f"n_slots ({self.n_slots}) muss durch phases ({self.phases}) teilbar sein.")
-        return errors
+        return ksolve.validate_parameters(self.n_slots, self.n_loops, self.phases)
 
     def get_magnet_parameters(self):
-        self.magnet_shape = self.m_cbMagShape.GetStringSelection().lower()
-        self.magnet_dia = float(self.m_ctrlMagDia.GetValue()) * self.SCALE
-        self.magnet_width = float(self.m_ctrlMagWidth.GetValue()) * self.SCALE
-        self.magnet_height = float(self.m_ctrlMagHeight.GetValue()) * self.SCALE
-        self.magnet_length = float(self.m_ctrlMagLength.GetValue()) * self.SCALE
-        self.magnet_ring_dia = float(self.m_ctrlMagRingDia.GetValue()) * self.SCALE
-        self.magnet_pole_pairs = int(self.m_ctrlMagPolePairs.GetValue())
-        self.magnet_gap = float(self.m_ctrlMagGap.GetValue()) * self.SCALE
-        self.magnet_keepout = float(self.m_ctrlMagKeepout.GetValue()) * self.SCALE
-        self.magnet_rotation = float(self.m_ctrlMagRotation.GetValue())
-        self.magnet_b_est = float(self.m_ctrlMagBest.GetValue()) if hasattr(self, "m_ctrlMagBest") else 0.60
-        self.magnet_poles = max(self.magnet_pole_pairs * 2, 0)
+        params = ksolve.magnet_parameters_from_values(
+            magnet_shape=kpers.read_selection(self.m_cbMagShape),
+            magnet_dia=kpers.read_scaled(self.m_ctrlMagDia, self.SCALE),
+            magnet_width=kpers.read_scaled(self.m_ctrlMagWidth, self.SCALE),
+            magnet_height=kpers.read_scaled(self.m_ctrlMagHeight, self.SCALE),
+            magnet_length=kpers.read_scaled(self.m_ctrlMagLength, self.SCALE),
+            magnet_ring_dia=kpers.read_scaled(self.m_ctrlMagRingDia, self.SCALE),
+            magnet_pole_pairs=kpers.read_int(self.m_ctrlMagPolePairs),
+            magnet_gap=kpers.read_scaled(self.m_ctrlMagGap, self.SCALE),
+            magnet_keepout=kpers.read_scaled(self.m_ctrlMagKeepout, self.SCALE),
+            magnet_rotation=kpers.read_float(self.m_ctrlMagRotation),
+            magnet_b_est=kpers.read_float(getattr(self, "m_ctrlMagBest", None), 0.60),
+        )
+        self.magnet_shape = params["magnet_shape"]
+        self.magnet_dia = params["magnet_dia"]
+        self.magnet_width = params["magnet_width"]
+        self.magnet_height = params["magnet_height"]
+        self.magnet_length = params["magnet_length"]
+        self.magnet_ring_dia = params["magnet_ring_dia"]
+        self.magnet_pole_pairs = params["magnet_pole_pairs"]
+        self.magnet_gap = params["magnet_gap"]
+        self.magnet_keepout = params["magnet_keepout"]
+        self.magnet_rotation = params["magnet_rotation"]
+        self.magnet_b_est = params["magnet_b_est"]
+        self.magnet_poles = params["magnet_poles"]
 
     def validate_magnet_parameters(self):
         self.get_magnet_parameters()
-        errors = []
-        warnings = []
-
-        if self.magnet_pole_pairs <= 0:
-            errors.append("Pole pairs must be > 0.")
-        if self.magnet_ring_dia <= 0:
-            errors.append("Magnet ring dia must be > 0.")
-
-        if self.magnet_shape == "round":
-            if self.magnet_dia <= 0:
-                errors.append("Magnet dia must be > 0 for round magnets.")
-            magnet_span = self.magnet_dia
-            radial_span = self.magnet_dia
-        else:
-            if self.magnet_width <= 0 or self.magnet_height <= 0:
-                errors.append("Magnet width and height must be > 0 for rectangular magnets.")
-            magnet_span = self.magnet_width
-            radial_span = self.magnet_height
-
-        if errors:
-            return errors, warnings
-
-        radius = self.magnet_ring_dia * 0.5
-        circumference = 2.0 * math.pi * radius
-        required_arc = self.magnet_poles * max(magnet_span + self.magnet_gap + self.magnet_keepout, 0.0)
-        pole_pitch_arc = circumference / max(self.magnet_poles, 1)
-        if required_arc > circumference:
-            errors.append(
-                "Magnets do not fit on the selected ring diameter. "
-                f"Required arc {required_arc / self.SCALE:.2f} mm > circumference {circumference / self.SCALE:.2f} mm."
-            )
-        if (magnet_span + self.magnet_gap + self.magnet_keepout) > pole_pitch_arc:
-            errors.append(
-                "Single magnet pitch is too large for the selected pole count. "
-                f"Needed { (magnet_span + self.magnet_gap + self.magnet_keepout) / self.SCALE:.2f} mm > "
-                f"available { pole_pitch_arc / self.SCALE:.2f} mm."
-            )
-
-        inner_edge = radius - (0.5 * radial_span) - self.magnet_keepout
-        outer_edge = radius + (0.5 * radial_span) + self.magnet_keepout
-        if inner_edge <= float(self.r_in):
-            errors.append(
-                f"Magnet ring intersects shaft bore region ({inner_edge / self.SCALE:.2f} mm <= {float(self.r_in) / self.SCALE:.2f} mm)."
-            )
-        if outer_edge >= float(self.r_out):
-            errors.append(
-                f"Magnet ring exceeds safe board radius ({outer_edge / self.SCALE:.2f} mm >= {float(self.r_out) / self.SCALE:.2f} mm)."
-            )
-
-        radial_clearance = 0.5 * radial_span + self.magnet_keepout
-        angular_half_span = (0.5 * magnet_span + self.magnet_keepout) / max(radius, 1.0)
-        for target_r, target_angle, hr, label in self._iter_magnet_clearance_targets():
-            radial_delta = abs(target_r - radius)
-            if radial_delta > (radial_clearance + hr):
-                continue
-            target_half_span = math.asin(min(0.999999, (hr + self.magnet_keepout) / max(target_r, 1.0)))
-            angle_delta = self._nearest_magnet_angle_delta(target_angle)
-            if angle_delta <= (angular_half_span + target_half_span):
-                warnings.append(
-                    f"Magnet ring overlaps the clearance zone of {label} near angle {math.degrees(target_angle):.1f} deg."
-                )
-            else:
-                warnings.append(
-                    f"Magnet ring is close to {label} (radial delta {radial_delta / self.SCALE:.2f} mm)."
-                )
-
-        if self.magnet_ring_dia >= float(self.r_out) * 2.0:
-            warnings.append("Magnet ring dia is at or outside board size.")
-        if self.magnet_ring_dia <= float(self.r_in) * 2.0:
-            warnings.append("Magnet ring dia is close to or inside the shaft bore region.")
-
-        return errors, warnings
+        return ksolve.validate_magnet_parameters(
+            magnet_pole_pairs=self.magnet_pole_pairs,
+            magnet_ring_dia=self.magnet_ring_dia,
+            magnet_shape=self.magnet_shape,
+            magnet_dia=self.magnet_dia,
+            magnet_width=self.magnet_width,
+            magnet_height=self.magnet_height,
+            magnet_gap=self.magnet_gap,
+            magnet_keepout=self.magnet_keepout,
+            magnet_poles=self.magnet_poles,
+            scale=self.SCALE,
+            r_in=self.r_in,
+            r_out=self.r_out,
+            clearance_targets=self._iter_magnet_clearance_targets(),
+            nearest_angle_delta_fn=self._nearest_magnet_angle_delta,
+        )
 
     def _update_magnet_summary(self, text):
-        if hasattr(self, "lblMagnetSummary") and self.lblMagnetSummary:
-            self.lblMagnetSummary.SetLabel(text)
-            self.lblMagnetSummary.Wrap(520)
-            self.lblMagnetSummary.GetParent().Layout()
+        return kpers.update_magnet_summary(self, text)
 
     def _get_mounting_hole_dia(self):
         fp_name = self.mhole_db.get(self.mhs or "", "")
-        if not fp_name:
-            return 0.0
-        m = re.search(r"MountingHole_([0-9.]+)mm", fp_name)
-        if not m:
-            return 0.0
-        try:
-            return float(m.group(1)) * self.SCALE
-        except ValueError:
-            return 0.0
+        return ksolve.get_mounting_hole_dia(fp_name, self.SCALE)
 
     def _iter_magnet_clearance_targets(self):
-        targets = []
-        mh_dia = self._get_mounting_hole_dia()
-        mh_radius = 0.5 * mh_dia if mh_dia > 0 else 0.0
-
-        if self.n_mh_out > 0 and self.r_mh_out > 0:
-            radius = float(self.r_mh_out)
-            if self.n_edges > 0:
-                radius /= max(math.cos(math.pi / self.n_edges), 1e-6)
-            th0 = 2 * math.pi / self.n_mh_out
-            for i in range(self.n_mh_out):
-                angle = th0 * i + th0 / 2.0
-                targets.append((radius, angle, mh_radius, "outer mounting holes"))
-
-        if self.n_mh_in > 0 and self.r_mh_in > 0:
-            th0 = 2 * math.pi / self.n_mh_in
-            for i in range(self.n_mh_in):
-                angle = th0 * i + th0 / 2.0
-                radius = float(self.r_mh_in)
-                targets.append((radius, angle, mh_radius, "inner mounting holes"))
-
+        corner_targets = []
         if self.n_edges == 4 and self.corner_hole_offset > 0 and self.corner_hole_dia > 0:
             for x, y, angle, dia in self._iter_outer_mount_points():
-                targets.append((math.hypot(x, y), angle, 0.5 * dia, "corner alignment holes"))
-
-        return targets
+                corner_targets.append((x, y, angle, dia))
+        return ksolve.iter_magnet_clearance_targets(
+            n_mh_out=self.n_mh_out,
+            r_mh_out=self.r_mh_out,
+            n_edges=self.n_edges,
+            n_mh_in=self.n_mh_in,
+            r_mh_in=self.r_mh_in,
+            mh_dia=self._get_mounting_hole_dia(),
+            corner_targets=corner_targets,
+        )
 
     def _angle_delta(self, a, b):
-        d = (a - b + math.pi) % (2.0 * math.pi) - math.pi
-        return abs(d)
+        return ksolve.angle_delta(a, b)
 
     def _nearest_magnet_angle_delta(self, target_angle):
-        if self.magnet_poles <= 0:
-            return math.pi
-        pitch = 2.0 * math.pi / self.magnet_poles
-        rot0 = math.radians(self.magnet_rotation)
-        rel = (target_angle - rot0) / pitch
-        nearest_idx = round(rel)
-        nearest_angle = rot0 + nearest_idx * pitch
-        return self._angle_delta(target_angle, nearest_angle)
+        return ksolve.nearest_magnet_angle_delta(target_angle, self.magnet_poles, self.magnet_rotation)
 
     def estimate_motor_constants(self, stats=None):
         if stats is None:
@@ -1051,23 +801,15 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         except Exception:
             return {"ke_est": 0.0, "kt_est": 0.0, "kv_est": 0.0}
 
-        if self.phases <= 0 or self.n_loops <= 0:
-            return {"ke_est": 0.0, "kt_est": 0.0, "kv_est": 0.0}
-
-        radius_m = ((float(self.r_coil_in) + float(self.r_coil_out)) * 0.5) / self.SCALE / 1000.0
-        radial_span_m = max(float(self.r_coil_out - self.r_coil_in), 0.0) / self.SCALE / 1000.0
-        turns_series = max((self.n_slots / max(self.phases, 1)) * self.n_loops, 1.0)
-        b_est = max(float(getattr(self, "magnet_b_est", 0.60)), 0.0)
-
-        if radius_m <= 0.0 or radial_span_m <= 0.0 or b_est <= 0.0:
-            return {"ke_est": 0.0, "kt_est": 0.0, "kv_est": 0.0}
-
-        # First-order axial/radial PCB motor estimate:
-        # E = B * l * v, v = omega * r, two active radial sides per turn.
-        ke_est = 2.0 * b_est * radial_span_m * turns_series * radius_m
-        kt_est = ke_est
-        kv_est = 0.0 if ke_est <= 0.0 else (60.0 / (2.0 * math.pi * ke_est))
-        return {"ke_est": ke_est, "kt_est": kt_est, "kv_est": kv_est}
+        return ksolve.estimate_motor_constants(
+            self.phases,
+            self.n_loops,
+            self.r_coil_in,
+            self.r_coil_out,
+            self.SCALE,
+            self.n_slots,
+            getattr(self, "magnet_b_est", 0.60),
+        )
 
     def estimate_winding_factor(self):
         try:
@@ -1076,27 +818,13 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         except Exception:
             return 0.0
 
-        if self.phases <= 0 or self.n_slots <= 0 or self.magnet_poles <= 0:
-            return 0.0
-
-        q = self.n_slots / float(self.magnet_poles * self.phases)
-        if q <= 0.0:
-            return 0.0
-
-        slot_pitch_e = 2.0 * math.pi * self.magnet_pole_pairs / max(self.n_slots, 1)
-        coil_pitch_slots = max(self.n_loops, 1)
-        coil_pitch_e = coil_pitch_slots * slot_pitch_e
-
-        kd_num = math.sin(q * slot_pitch_e / 2.0)
-        kd_den = max(q * math.sin(slot_pitch_e / 2.0), 1e-9)
-        kd = abs(kd_num / kd_den)
-        kp = abs(math.sin(coil_pitch_e / 2.0))
-
-        if self.phases == 1:
-            kw = min(max(kp, 0.0), 1.0)
-        else:
-            kw = min(max(kd * kp, 0.0), 1.0)
-        return kw
+        return ksolve.estimate_winding_factor(
+            self.phases,
+            self.n_slots,
+            self.magnet_poles,
+            self.magnet_pole_pairs,
+            self.n_loops,
+        )
 
     def estimate_performance_stats(self, stats=None, motor_consts=None):
         if stats is None:
@@ -1104,20 +832,11 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         if motor_consts is None:
             motor_consts = self.estimate_motor_constants(stats)
 
-        kv_est = float(motor_consts.get("kv_est", 0.0))
-        kt_est = float(motor_consts.get("kt_est", 0.0))
-        phase_r = max(float(stats.get("phase_r_temp", 0.0)), 0.0)
-
-        rpm_12v = 12.0 * kv_est
-        stall_current = 0.0 if phase_r <= 0.0 else 12.0 / phase_r
-        stall_torque = kt_est * stall_current
-
-        return {
-            "winding_factor_est": self.estimate_winding_factor(),
-            "rpm_12v_est": rpm_12v,
-            "stall_current_est": stall_current,
-            "stall_torque_est": stall_torque,
-        }
+        return ksolve.estimate_performance_stats(
+            stats,
+            motor_consts,
+            self.estimate_winding_factor(),
+        )
 
     def estimate_model_warnings(self, stats=None, motor_consts=None, perf_stats=None):
         if stats is None:
@@ -1127,40 +846,24 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         if perf_stats is None:
             perf_stats = self.estimate_performance_stats(stats, motor_consts)
 
-        warnings = []
-        if float(getattr(self, "magnet_b_est", 0.0)) <= 0.0:
-            warnings.append("B gap est <= 0")
-        if int(getattr(self, "magnet_poles", 0)) <= 0:
-            warnings.append("no magnet poles")
-        if float(stats.get("phase_r_temp", 0.0)) <= 0.0:
-            warnings.append("phase R <= 0")
-        if float(perf_stats.get("winding_factor_est", 0.0)) < 0.2:
-            warnings.append("low winding factor")
-        if float(perf_stats.get("stall_current_est", 0.0)) > 50.0:
-            warnings.append("high stall current")
-        return warnings
+        return ksolve.estimate_model_warnings(
+            stats,
+            perf_stats,
+            getattr(self, "magnet_b_est", 0.0),
+            getattr(self, "magnet_poles", 0),
+        )
 
     def get_effective_coil_strategy(self, ri, ro, n_slots, n_loops):
-        radial_available = max(ro - ri, 0.0)
-        radial_required = max(n_loops * self.dr + self.trk_w, self.dr)
-        slot_pitch = (2.0 * math.pi) / max(n_slots, 1)
-        mean_radius = max(0.5 * (ri + ro), 1.0)
-        tangential_span = max(mean_radius * slot_pitch, 1.0)
-        aspect = float(radial_available) / float(tangential_span)
-
-        selected = int(getattr(self, "strategy", 1))
-        if selected == 2:
-            return 2, "Compact"
-
-        if getattr(self, "max_spec", False):
-            dense_fill = radial_required >= radial_available * 0.82
-            near_square = aspect <= 0.34
-            if dense_fill or near_square:
-                return 2, "Compact"
-
-        if selected == 0:
-            return 0, "Parallel"
-        return 1, "Radial"
+        return ksolve.get_effective_coil_strategy(
+            ri,
+            ro,
+            n_slots,
+            n_loops,
+            self.dr,
+            self.trk_w,
+            getattr(self, "strategy", 1),
+            getattr(self, "max_spec", False),
+        )
 
     def _clear_magnet_group(self):
         self.magnet_group = kkicad.clear_magnet_group(self.board, getattr(self, 'magnet_group', None))
@@ -1193,157 +896,79 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         )
 
     def _add_linear_hole_scale_at(self, group, center_xy, radial_angle, hole_radius, origin_xy):
-        cx, cy = center_xy
-        axis_dir = np.array([math.cos(radial_angle), math.sin(radial_angle)])
-        perp_dir = np.array([-math.sin(radial_angle), math.cos(radial_angle)])
-        inward = -perp_dir
         step_deg = max(0.1, float(getattr(self, "corner_scale_step_deg", 1.0)))
         angle_span = float(getattr(self, "corner_scale_span_deg", 5.0))
-        hole_count = max(3, int(round((2.0 * angle_span) / step_deg)) + 1)
-        hole_angles = np.linspace(
-            radial_angle - math.radians(angle_span),
-            radial_angle + math.radians(angle_span),
-            hole_count,
-        )
-        arc_radius = math.hypot(cx - origin_xy[0], cy - origin_xy[1])
-        for idx, angle in enumerate(hole_angles):
-            hc = (
-                origin_xy[0] + arc_radius * math.cos(angle),
-                origin_xy[1] + arc_radius * math.sin(angle),
-            )
-            fp = self._add_npth_hole_at(hc, hole_radius, f"{int(origin_xy[0])}_{int(origin_xy[1])}_{idx}")
-            if group is not None and fp is not None:
-                group.AddItem(fp)
-
-        helper_center = np.array([cx, cy]) + inward * (hole_radius + 0.25 * self.SCALE)
-        helper_half_len = max(1.2 * self.SCALE, 0.8 * hole_radius)
-        p0 = tuple(helper_center - axis_dir * helper_half_len)
-        p1 = tuple(helper_center + axis_dir * helper_half_len)
-        self._add_grouped_silk_segment(group, p0, p1, width=max(1, 0.10 * self.SCALE))
-
-        def add_rotated_line_block(step_deg_local, span_deg_local, tick_len, width):
-            count = max(1, int(round(span_deg_local / step_deg_local)))
-            base_anchor = tuple(helper_center)
-            base_q0 = base_anchor
-            base_q1 = tuple(helper_center + inward * tick_len)
-            for idx in range(-count, count + 1):
-                delta = math.radians(idx * step_deg_local)
-                q0 = self._rotate_about_xy(base_q0, origin_xy, delta)
-                q1 = self._rotate_about_xy(base_q1, origin_xy, delta)
-                self._add_grouped_silk_segment(group, q0, q1, width=width)
-
-        add_rotated_line_block(
-            1.0,
-            angle_span,
-            tick_len=max(7.0 * self.SCALE, 4.0 * hole_radius),
-            width=max(1, 0.08 * self.SCALE),
-        )
-        add_rotated_line_block(
+        return kkicad.add_linear_hole_scale_at(
+            group,
+            center_xy,
+            radial_angle,
+            hole_radius,
+            origin_xy,
+            self.SCALE,
             step_deg,
             angle_span,
-            tick_len=max(2.2 * self.SCALE, 1.2 * hole_radius),
-            width=max(1, 0.10 * self.SCALE),
+            self._add_npth_hole_at,
+            self._add_grouped_silk_segment,
+            self._rotate_about_xy,
         )
 
     def _build_offset_outline(self, group, origin_xy):
-        cx, cy = origin_xy
-        self._add_grouped_edge_circle(group, origin_xy, self.r_in)
-        relief_dia = max(min(0.12 * (2.0 * self.r_in), 2.0 * self.SCALE), 0.8 * self.SCALE) if self.r_in > 0 else 0
-        if relief_dia > 0 and self.r_in > (1.5 * relief_dia):
-            relief_radius = self.r_in + (0.5 * relief_dia)
-            for angle in (math.pi / 4.0, 3.0 * math.pi / 4.0, 5.0 * math.pi / 4.0, 7.0 * math.pi / 4.0):
-                rp = (
-                    cx + relief_radius * math.cos(angle),
-                    cy + relief_radius * math.sin(angle),
-                )
-                self._add_grouped_edge_circle(group, rp, relief_dia / 2.0)
-
-        if self.n_edges == 0:
-            self._add_grouped_edge_circle(group, origin_xy, self.r_out)
-            return
-
-        points = self._outline_poly_points(self.r_out, self.n_edges)
-        if not points:
-            return
-        pts = [self._offset_xy(self._point_xy(pt), origin_xy) for pt in points]
-        for i in range(len(pts)):
-            self._add_grouped_silk_segment(group, pts[i], pts[(i + 1) % len(pts)], width=max(1, 0.09 * self.SCALE))
-            seg = pcbnew.PCB_SHAPE(self.board, pcbnew.SHAPE_T_SEGMENT)
-            seg.SetStart(self._as_point(pts[i][0], pts[i][1]))
-            seg.SetEnd(self._as_point(pts[(i + 1) % len(pts)][0], pts[(i + 1) % len(pts)][1]))
-            seg.SetLayer(pcbnew.Edge_Cuts)
-            self.board.Add(seg)
-            if group is not None:
-                group.AddItem(seg)
+        outline_points = kgeo.outline_poly_points(self.r_out, self.n_edges) if self.n_edges != 0 else None
+        return kkicad.build_offset_outline(
+            self.board,
+            group,
+            origin_xy,
+            self.r_in,
+            self.r_out,
+            self.n_edges,
+            self.SCALE,
+            outline_points,
+            self._add_grouped_circle,
+            self._add_grouped_segment,
+            self.fpoint,
+        )
 
     def _build_offset_mounting_holes(self, group, origin_xy):
-        if self.mhs == "None":
-            return
-        fp_lib = self.fp_path + 'MountingHole.pretty'
         fp = self.mhole_db.get(self.mhs)
-        if not fp:
-            return
+        fp_lib = self.fp_path + 'MountingHole.pretty' if self.fp_path else None
         ni_gnd = self.board.FindNet("gnd")
-
-        if self.n_mh_out > 0:
-            r_mh_out = float(self.r_mh_out)
-            if self.n_edges > 0:
-                r_mh_out /= max(math.cos(math.pi / self.n_edges), 1e-6)
-            th0 = 2 * math.pi / self.n_mh_out
-            for i in range(self.n_mh_out):
-                pos = (
-                    origin_xy[0] + r_mh_out * math.cos(th0 * i + th0 / 2.0),
-                    origin_xy[1] + r_mh_out * math.sin(th0 * i + th0 / 2.0),
-                )
-                self._add_mounting_hole_fp_at(group, pos, fp_lib, fp, f"MMO_{i}", net=ni_gnd)
-
-        if self.n_mh_in > 0:
-            th0 = 2 * math.pi / self.n_mh_in
-            for i in range(self.n_mh_in):
-                pos = (
-                    origin_xy[0] + float(self.r_mh_in) * math.cos(th0 * i + th0 / 2.0),
-                    origin_xy[1] + float(self.r_mh_in) * math.sin(th0 * i + th0 / 2.0),
-                )
-                self._add_mounting_hole_fp_at(group, pos, fp_lib, fp, f"MMI_{i}", net=ni_gnd)
-
-        if getattr(self, "silk_hole_scales", False):
-            for x, y, angle, dia in self._iter_corner_points_for_origin(origin_xy):
-                self._add_linear_hole_scale_at(group, (x, y), angle, max(dia * 0.5, 0.5 * self.SCALE), origin_xy)
+        return kkicad.build_offset_mounting_holes(
+            group,
+            origin_xy,
+            self.mhs,
+            fp_lib,
+            fp,
+            ni_gnd,
+            self.n_mh_out,
+            self.r_mh_out,
+            self.n_edges,
+            self.n_mh_in,
+            self.r_mh_in,
+            bool(getattr(self, "silk_hole_scales", False)),
+            self.SCALE,
+            self._iter_corner_points_for_origin,
+            self._add_mounting_hole_fp_at,
+            self._add_linear_hole_scale_at,
+        )
 
     def _build_magnet_markers(self, group, origin_xy):
-        if self.magnet_poles <= 0:
-            return
-        radius = 0.5 * float(self.magnet_ring_dia)
-        rot0 = math.radians(self.magnet_rotation)
-        pitch = 2.0 * math.pi / self.magnet_poles
-        aux_layer = self._get_magnet_aux_layer()
-        body_width = max(1, 0.12 * self.SCALE)
-        keepout_width = max(1, 0.08 * self.SCALE)
-        for idx in range(self.magnet_poles):
-            angle = rot0 + idx * pitch
-            center = (
-                origin_xy[0] + radius * math.cos(angle),
-                origin_xy[1] + radius * math.sin(angle),
-            )
-            if self.magnet_shape == "round":
-                body_r = 0.5 * float(self.magnet_dia)
-                self._add_grouped_silk_circle(group, center, body_r, width=body_width)
-                if self.magnet_keepout > 0:
-                    self._add_grouped_circle(group, center, body_r + float(self.magnet_keepout), aux_layer, keepout_width)
-            else:
-                half_w = 0.5 * float(self.magnet_width)
-                half_h = 0.5 * float(self.magnet_height)
-                self._add_grouped_rect_outline(group, center, half_w, half_h, angle, pcbnew.F_SilkS, body_width)
-                if self.magnet_keepout > 0:
-                    self._add_grouped_rect_outline(
-                        group,
-                        center,
-                        half_w + float(self.magnet_keepout),
-                        half_h + float(self.magnet_keepout),
-                        angle,
-                        aux_layer,
-                        keepout_width,
-                    )
+        return kkicad.build_magnet_markers(
+            group,
+            origin_xy,
+            self.magnet_poles,
+            self.magnet_ring_dia,
+            self.magnet_rotation,
+            self.magnet_shape,
+            self.magnet_dia,
+            self.magnet_width,
+            self.magnet_height,
+            self.magnet_keepout,
+            self.SCALE,
+            self._add_grouped_silk_circle,
+            self._add_grouped_circle,
+            self._add_grouped_rect_outline,
+            self._get_magnet_aux_layer,
+        )
 
     def generate_magnet_pcb(self):
         self.get_parameters()
@@ -1982,27 +1607,16 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         return self.add_custom_through_via(position, net=None, drill=self.d_support_hole, width=hole_width)
 
     def get_support_hole_width(self):
-        pad_margin = int(0.25 * self.SCALE)
-        return max(self.d_support_hole + pad_margin, self.d_support_hole + 1)
+        return ksolve.get_support_hole_width(self.d_support_hole, self.SCALE)
 
     def get_selected_terminal_od_iu(self):
-        # Estimate terminal outer diameter from selected THT footprint name "..._ODx.xmm".
-        # Used to keep clustered terminals from overlapping.
-        if self.trmtype != "THT":
-            return int(4.0 * self.SCALE)
-        try:
-            fp = self.term_db.get("THT", {}).get(self.m_termSize.GetStringSelection(), "")
-            if "_OD" in fp and "mm" in fp:
-                token = fp.split("_OD", 1)[1].split("mm", 1)[0]
-                return int(float(token) * self.SCALE)
-        except Exception:
-            pass
-        return int(4.0 * self.SCALE)
+        term_size = self.m_termSize.GetStringSelection() if hasattr(self, "m_termSize") else ""
+        return ksolve.get_selected_terminal_od_iu(self.trmtype, self.term_db, term_size, self.SCALE)
 
     def estimate_safe_inner_fill_radius(self, net_name="coil"):
         """Upper bound for center fill radius to avoid touching net copper/pads."""
         safe_margin = max(self.trk_space, int(0.2 * self.SCALE))
-        r_safe = None
+        clearance_values = []
 
         for item in self.board.GetTracks():
             try:
@@ -2013,21 +1627,15 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                 continue
 
             width = item.GetWidth() if hasattr(item, "GetWidth") else self.trk_w
-            pts = []
-            # Do not use arc/track center position here (e.g. ARC center at board origin),
-            # otherwise safe radius can collapse incorrectly to 0.
+            points = []
             for getter in ("GetStart", "GetEnd", "GetMid"):
                 if hasattr(item, getter):
                     try:
                         p = getattr(item, getter)()
-                        pts.append((float(p.x), float(p.y)))
+                        points.append((float(p.x), float(p.y)))
                     except Exception:
                         pass
-
-            for x, y in pts:
-                rr = math.hypot(x, y) - (width / 2.0) - safe_margin
-                if r_safe is None or rr < r_safe:
-                    r_safe = rr
+            clearance_values.extend(ksolve.track_clearance_values(points, width, safe_margin))
 
         for fp in self.board.GetFootprints():
             for pad in fp.Pads():
@@ -2039,20 +1647,18 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                     continue
                 pos = pad.GetPosition()
                 size = pad.GetSize()
-                pad_r = 0.5 * max(float(size.x), float(size.y))
-                rr = math.hypot(float(pos.x), float(pos.y)) - pad_r - safe_margin
-                if r_safe is None or rr < r_safe:
-                    r_safe = rr
+                clearance_values.append(
+                    ksolve.pad_clearance_value(
+                        (float(pos.x), float(pos.y)),
+                        (float(size.x), float(size.y)),
+                        safe_margin,
+                    )
+                )
 
-        if r_safe is None:
-            return None
-        return max(0, int(r_safe))
+        return ksolve.estimate_safe_inner_fill_radius(clearance_values)
 
     def hole_collides(self, position, placed_points, min_distance):
-        for pt in placed_points:
-            if math.hypot(pt.x - position.x, pt.y - position.y) < min_distance:
-                return True
-        return False
+        return ksolve.hole_collides(position, placed_points, min_distance)
 
     # =========================================================================
     # PROFESSIONELLES ROUTING: 4 Anchor-Pins, Radial-Lines, Keine Kreuzungen
@@ -2826,137 +2432,84 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         return t
 
     def calculate_stats_breakdown(self, board, net_name="coil", temp=20):
-        rho = 1.77e-8       
-        alpha = 0.00393     
-        l_total = 0.0
-        r_total_20 = 0.0
-        l_ring = 0.0
-        r_ring_20 = 0.0
-        
+        segments = []
         for item in board.GetTracks():
             net = item.GetNet()
-            if net is not None and net.GetNetname() == net_name:
-                length_m = item.GetLength() / self.SCALE / 1000.0
-                width_m = item.GetWidth() / self.SCALE / 1000.0
-                
-                l_total += length_m
-                if getattr(self, "winding_mode", "PCB") == "Wire":
-                    wire_dia_m = max(float(getattr(self, "wire_dia_mm", 0.5)) / 1000.0, 1e-9)
-                    A = math.pi * (wire_dia_m * 0.5) ** 2
-                else:
-                    A = width_m * float(getattr(self, "copper_thickness_m", self.tthick))
-                
-                if A > 0:
-                    r_part = rho * (length_m / A)
-                    r_total_20 += r_part
-                    if item.GetLayer() == pcbnew.F_Cu and item.GetWidth() == self.ring_w:
-                        l_ring += length_m
-                        r_ring_20 += r_part
+            if net is None or net.GetNetname() != net_name:
+                continue
+            segments.append({
+                "length_m": item.GetLength() / self.SCALE / 1000.0,
+                "width_m": item.GetWidth() / self.SCALE / 1000.0,
+                "layer": item.GetLayer(),
+                "width_iu": item.GetWidth(),
+            })
 
-        l_coil = max(l_total - l_ring, 0.0)
-        r_coil_20 = max(r_total_20 - r_ring_20, 0.0)
-
-        phase_len_mm = (l_total / self.phases) * 1000.0
-        phase_r_20 = r_total_20 / self.phases
-        phase_r_temp = phase_r_20 * (1 + alpha * (temp - 20))
-        total_r_temp = r_total_20 * (1 + alpha * (temp - 20))
-        ring_r_temp = r_ring_20 * (1 + alpha * (temp - 20))
-        coil_r_temp = r_coil_20 * (1 + alpha * (temp - 20))
-        coil_res_per_coil = coil_r_temp / max(self.n_slots, 1)
         winding_stats = self._estimate_turns_per_layer()
-
-        coils_count = max(self.n_slots, 1)
-        phases_count = max(self.phases, 1)
-        return {
-            "total_length_mm": l_total * 1000.0,
-            "total_length_m": l_total,
-            "phase_len_mm": phase_len_mm,
-            "phase_r_temp": phase_r_temp,
-            "total_resistance": total_r_temp,
-            "coil_resistance_per_coil": coil_res_per_coil,
-            "ring_resistance_total": ring_r_temp,
-            "coil_length_mm": l_coil * 1000.0,
-            "ring_length_mm": l_ring * 1000.0,
-            "coil_length_per_coil_mm": (l_coil * 1000.0) / coils_count,
-            "coil_resistance_total": coil_r_temp,
-            "ring_resistance_per_phase": ring_r_temp / phases_count,
-            "winding_mode": getattr(self, "winding_mode", "PCB"),
-            "turns_per_layer_est": winding_stats["turns_per_layer_est"],
-            "turn_capacity_per_layer_est": winding_stats["turn_capacity_per_layer_est"],
-            "effective_layers": winding_stats["effective_layers"],
-            "copper_length_total_m": l_total,
-        }
+        return ksolve.calculate_stats_breakdown(
+            segments=segments,
+            temp=temp,
+            phases=self.phases,
+            n_slots=self.n_slots,
+            winding_mode=getattr(self, "winding_mode", "PCB"),
+            wire_dia_mm=float(getattr(self, "wire_dia_mm", 0.5)),
+            copper_thickness_m=float(getattr(self, "copper_thickness_m", self.tthick)),
+            ring_width_iu=self.ring_w,
+            front_cu_layer=pcbnew.F_Cu,
+            winding_stats=winding_stats,
+        )
 
     def calculate_stats(self, board, net_name="coil", temp=20):
         stats = self.calculate_stats_breakdown(board, net_name=net_name, temp=temp)
-        return stats["phase_len_mm"], stats["phase_r_temp"]
+        return ksolve.calculate_stats(stats)
 
     def on_close(self, event):
-        try:
-            self.pm.SaveAndUnregister()
-        except Exception as exc:
-            self.set_status("Close warning")
-            self._log_exception("Close persistence failed", exc)
-        event.Skip()
+        kpers.handle_close(self.pm, event, self.set_status, self._log_exception)
 
     def on_btn_clear(self, event):
-        if self.group:
-            self.group.RemoveAll()
-            self.group = None
-            self.btn_clear.Enable(False)
+        self.group = kpers.clear_group(self.group, self.btn_clear)
         event.Skip()
 
     def on_btn_generate(self, event):
-        self._run_action(
+        kpers.handle_action_event(
+            event,
+            self._run_action,
             "Started: generation running (can take 5-60 s)",
             "Finished",
             "Generation",
             self.generate,
         )
-        event.Skip()
 
     def on_btn_generate_magnet(self, event):
-        self._run_action(
+        kpers.handle_action_event(
+            event,
+            self._run_action,
             "Started: magnet PCB generation running",
             "Magnet PCB generated",
             "Magnet PCB generation",
             self.generate_magnet_pcb,
             summary_target="magnet",
         )
-        event.Skip()
 
     def on_btn_generate_both(self, event):
-        def _generate_both():
-            self.generate()
-            self.generate_magnet_pcb()
-
-        self._run_action(
+        kpers.handle_action_event(
+            event,
+            self._run_action,
             "Started: combined stator + magnet generation running",
             "Stator and Magnet PCB generated",
             "Combined generation",
-            _generate_both,
+            lambda: kpers.run_callbacks(self.generate, self.generate_magnet_pcb),
             summary_target="magnet",
         )
-        event.Skip()
 
     def on_btn_save(self, event):
         self.set_status("Saving preset")
         try:
             config = self.to_motor_config()
             json_str = config.to_json()
-            
-            with wx.FileDialog(self, "Save KMotor_Pro preset", 
-                           wildcard="JSON files (*.json)|*.json|KMT files (*.kmt)|*.kmt",
-                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
-                fileDialog.SetFilename("kmotor_pro.json")
-                if fileDialog.ShowModal() == wx.ID_CANCEL:
-                    self.set_status("Save cancelled")
-                    return
-                target = fileDialog.GetPath()
-                
-                with open(target, 'w', encoding='utf-8') as f:
-                    f.write(json_str)
-            
+            saved = kpers.save_preset_dialog(self, json_str)
+            if not saved:
+                self.set_status("Save cancelled")
+                return
             self.set_status("Preset saved")
         except Exception as exc:
             self.set_status("Save failed")
@@ -3104,13 +2657,16 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             if hasattr(self, 'm_ctrlCornerScaleSpan'):
                 self.m_ctrlCornerScaleSpan.SetValue(config.peripherals.corner_scale_span_deg)
             
-            # Trigger UI updates
-            self.on_cb_outline(None)
-            self.on_cb_trmtype(None)
-            self.on_cb_winding_mode(None)
-            self.on_cb_magnet_shape(None)
+            # Trigger dependent UI updates after value restore.
+            callbacks = [
+                self.on_cb_outline,
+                self.on_cb_trmtype,
+                self.on_cb_winding_mode,
+                self.on_cb_magnet_shape,
+            ]
             if hasattr(self, 'on_nr_layers'):
-                self.on_nr_layers(None)
+                callbacks.append(self.on_nr_layers)
+            kpers.run_event_callbacks(*callbacks)
                 
         except Exception as exc:
             self._log_exception("Apply config to GUI failed", exc)
@@ -3118,115 +2674,78 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
     def on_btn_load(self, event):
         self.set_status("Loading preset")
         try:
-            with wx.FileDialog(self, "Load KMotor_Pro preset", 
-                           wildcard="JSON files (*.json)|*.json|KMT files (*.kmt)|*.kmt",
-                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
-                if fileDialog.ShowModal() == wx.ID_CANCEL:
-                    self.set_status("Load cancelled")
-                    return
-                origin = fileDialog.GetPath()
-                
-                # Try JSON format first
-                if origin.lower().endswith('.json'):
-                    with open(origin, 'r', encoding='utf-8') as f:
-                        json_str = f.read()
-                    config = MotorInputConfig.from_json(json_str)
-                    self._apply_config_to_gui(config)
-                else:
-                    # Legacy .kmt format
-                    target = self.pf
-                    tmp = fileDialog.GetDirectory() + "/kmotor_pro.tmp"
-                    self.pm.SetPersistenceFile(tmp)
-                    self.pm.SaveAndUnregister()
-                    shutil.copyfile(origin, target)
-                    self.pm.SetPersistenceFile(target)
-                    self.pm.RegisterAndRestoreAll(self)
-                    self.on_cb_outline(None)
-                    self.on_cb_trmtype(None)
-                    self.on_cb_winding_mode(None)
-                    self.on_cb_magnet_shape(None)
-                
+            load_info = kpers.choose_preset_to_load(self)
+            if not load_info:
+                self.set_status("Load cancelled")
+                return
+            origin, directory = load_info
+
+            if origin.lower().endswith('.json'):
+                config = kpers.load_json_preset(origin, MotorInputConfig)
+                self._apply_config_to_gui(config)
+            else:
+                kpers.load_legacy_preset(origin, directory, self.pf, self.pm, self)
+                kpers.run_event_callbacks(
+                    self.on_cb_outline,
+                    self.on_cb_trmtype,
+                    self.on_cb_winding_mode,
+                    self.on_cb_magnet_shape,
+                )
+
             self.set_status("Preset loaded")
         except Exception as exc:
             self.set_status("Load failed")
             self._log_exception("Preset load failed", exc)
 
     def on_cb_preset(self, event):
-        if not hasattr(self, "m_cbPreset"):
-            if event is not None:
-                event.Skip()
-            return
-        preset_name = self.m_cbPreset.GetStringSelection()
-        applied = self._apply_pcb_preset(preset_name)
-        if applied:
-            self.set_status(f"Preset applied: {preset_name}")
-        if event is not None:
-            event.Skip()
+        return kpers.handle_preset_event(
+            event,
+            getattr(self, "m_cbPreset", None),
+            self._apply_pcb_preset,
+            self.set_status,
+        )
 
     def on_cb_outline(self, event):
-        if self.m_cbOutline.GetStringSelection() == "None":
-            self.m_ctrlDout.Enable(False)
-            self.m_ctrlFilletRadius.Enable(False)
-        elif self.m_cbOutline.GetStringSelection() == "Circle":
-            self.m_ctrlDout.Enable(True)
-            self.m_ctrlFilletRadius.Enable(True)
-        else:
-            self.m_ctrlDout.Enable(True)
-            self.m_ctrlFilletRadius.Enable(True)
-
-        if event is not None:
-            event.Skip()
+        return kpers.handle_outline_event(
+            self.m_cbOutline.GetStringSelection(),
+            self.m_ctrlDout,
+            self.m_ctrlFilletRadius,
+            event,
+        )
 
     def on_cb_trmtype(self, event):
-        pads = self.m_cbTP.GetStringSelection()
-        if pads == "None":
-            self.m_termSize.Enable(False)
-        elif pads == "THT" or pads == "SMD":
-            keys = self.term_db.get(pads).keys()
-            for i,k in enumerate(keys):
-                self.m_termSize.SetString(i,k)
-            while len(keys) < self.m_termSize.GetCount():
-                self.m_termSize.Delete( self.m_termSize.GetCount()-1 )
-            self.m_termSize.SetValue( 
-                self.m_termSize.GetString(
-                    self.m_termSize.GetCurrentSelection()))
-            self.m_termSize.Enable(True)
-
-        if event is not None:
-            event.Skip()
+        return kpers.handle_terminal_type_event(
+            self.m_cbTP.GetStringSelection(),
+            self.term_db,
+            self.m_termSize,
+            event,
+        )
 
     def on_cb_winding_mode(self, event):
         mode = self.m_cbWindingMode.GetStringSelection() if hasattr(self, "m_cbWindingMode") else "PCB"
-        is_pcb = (mode == "PCB")
-        for ctrl in (self.lbl_copperWeight, self.m_cbCopperWeight):
-            ctrl.Enable(is_pcb)
-        for ctrl in (self.lbl_wireDia, self.m_ctrlWireDia, self.lbl_wireDiaUnit):
-            ctrl.Enable(not is_pcb)
-
-        if event is not None:
-            event.Skip()
+        return kpers.handle_winding_mode_event(
+            mode,
+            (self.lbl_copperWeight, self.m_cbCopperWeight),
+            (self.lbl_wireDia, self.m_ctrlWireDia, self.lbl_wireDiaUnit),
+            event,
+        )
 
     def on_cb_magnet_shape(self, event):
         shape = self.m_cbMagShape.GetStringSelection() if hasattr(self, "m_cbMagShape") else "Round"
-        is_round = (shape == "Round")
-        for ctrl in (self.lbl_magDia, self.m_ctrlMagDia, self.lbl_magDiaUnit):
-            ctrl.Enable(is_round)
-        for ctrl in (
-            self.lbl_magWidth, self.m_ctrlMagWidth, self.lbl_magWidthUnit,
-            self.lbl_magHeight, self.m_ctrlMagHeight, self.lbl_magHeightUnit,
-        ):
-            ctrl.Enable(not is_round)
-        self._update_magnet_summary(
-            "Round magnets use Magnet dia. Rect magnets use width (B) and height (H). "
-            "Use Generate Magnet PCB for a first fit-check against ring diameter and pole count."
+        return kpers.handle_magnet_shape_event(
+            shape,
+            (self.lbl_magDia, self.m_ctrlMagDia, self.lbl_magDiaUnit),
+            (
+                self.lbl_magWidth, self.m_ctrlMagWidth, self.lbl_magWidthUnit,
+                self.lbl_magHeight, self.m_ctrlMagHeight, self.lbl_magHeightUnit,
+            ),
+            self._update_magnet_summary,
+            event,
         )
-        if event is not None:
-            event.Skip()
 
     def on_cb_mholes(self, event):
-        event.Skip()
+        return kpers.skip_event(event)
 
     def on_nr_layers(self, event):
-        self.n_layers = int(self.m_ctrlLayers.GetValue())
-        if event is not None:
-            event.Skip()
+        self.n_layers = kpers.read_layer_count(self.m_ctrlLayers)
+        return kpers.skip_event(event)

@@ -403,5 +403,209 @@ def iter_corner_points_for_origin(n_edges, corner_hole_offset, corner_hole_dia, 
         return pts[:max(0, min(len(pts), int(corner_hole_count)))]
     return []
 
+def add_linear_hole_scale(add_npth_hole, add_silk_segment, rotate_xy, SCALE, center_xy, radial_angle, hole_radius, step_deg, base_hole_count, angle_span):
+    """Draw corner hole scale helpers around a point."""
+    cx, cy = center_xy
+    axis_dir = (math.cos(radial_angle), math.sin(radial_angle))
+    inward = (-axis_dir[0], -axis_dir[1])
+    auto_hole_count = max(3, int(round((2.0 * angle_span) / step_deg)) + 1)
+    hole_count = max(base_hole_count, auto_hole_count)
+
+    arc_radius = math.hypot(cx, cy)
+    if hole_count <= 1:
+        angles = [radial_angle]
+    else:
+        start = radial_angle - math.radians(angle_span)
+        stop = radial_angle + math.radians(angle_span)
+        step = (stop - start) / float(hole_count - 1)
+        angles = [start + idx * step for idx in range(hole_count)]
+
+    for hole_idx, angle in enumerate(angles):
+        hc = (arc_radius * math.cos(angle), arc_radius * math.sin(angle))
+        add_npth_hole(hc, hole_radius, hole_idx)
+
+    helper_center = (
+        cx + inward[0] * (hole_radius + 0.25 * SCALE),
+        cy + inward[1] * (hole_radius + 0.25 * SCALE),
+    )
+    helper_half_len = max(1.2 * SCALE, 0.8 * hole_radius)
+    p0 = (
+        helper_center[0] - axis_dir[0] * helper_half_len,
+        helper_center[1] - axis_dir[1] * helper_half_len,
+    )
+    p1 = (
+        helper_center[0] + axis_dir[0] * helper_half_len,
+        helper_center[1] + axis_dir[1] * helper_half_len,
+    )
+    add_silk_segment(p0, p1, width=max(1, 0.10 * SCALE), clip_to_outline=True, clip_margin=0.35 * SCALE)
+
+    def add_rotated_line_block(step_deg_local, span_deg_local, tick_len, width):
+        count = max(1, int(round(span_deg_local / step_deg_local)))
+        base_q0 = helper_center
+        base_q1 = (
+            helper_center[0] + inward[0] * tick_len,
+            helper_center[1] + inward[1] * tick_len,
+        )
+        for idx in range(-count, count + 1):
+            delta = math.radians(idx * step_deg_local)
+            q0 = rotate_xy(base_q0, delta)
+            q1 = rotate_xy(base_q1, delta)
+            add_silk_segment(q0, q1, width=width, clip_to_outline=True, clip_margin=0.35 * SCALE)
+
+    add_rotated_line_block(1.0, angle_span, tick_len=max(7.0 * SCALE, 4.0 * hole_radius), width=max(1, 0.08 * SCALE))
+    add_rotated_line_block(step_deg, angle_span, tick_len=max(2.2 * SCALE, 1.2 * hole_radius), width=max(1, 0.10 * SCALE))
+
+
+def build_offset_outline(board, group, origin_xy, r_in, r_out, n_edges, SCALE, outline_points, add_grouped_circle, add_grouped_segment, fpoint):
+    """Render the offset magnet board outline and relief holes."""
+    cx, cy = origin_xy
+    add_grouped_circle(group, origin_xy, r_in, pcbnew.Edge_Cuts, max(1, 0.09 * SCALE))
+    relief_dia = max(min(0.12 * (2.0 * r_in), 2.0 * SCALE), 0.8 * SCALE) if r_in > 0 else 0
+    if relief_dia > 0 and r_in > (1.5 * relief_dia):
+        relief_radius = r_in + (0.5 * relief_dia)
+        for angle in (math.pi / 4.0, 3.0 * math.pi / 4.0, 5.0 * math.pi / 4.0, 7.0 * math.pi / 4.0):
+            rp = (cx + relief_radius * math.cos(angle), cy + relief_radius * math.sin(angle))
+            add_grouped_circle(group, rp, relief_dia / 2.0, pcbnew.Edge_Cuts, max(1, 0.09 * SCALE))
+
+    if n_edges == 0:
+        add_grouped_circle(group, origin_xy, r_out, pcbnew.Edge_Cuts, max(1, 0.09 * SCALE))
+        return
+
+    if not outline_points:
+        return
+    pts = [(float(x) + origin_xy[0], float(y) + origin_xy[1]) for x, y in outline_points]
+    for idx in range(len(pts)):
+        start = pts[idx]
+        end = pts[(idx + 1) % len(pts)]
+        add_grouped_segment(group, start, end, pcbnew.F_SilkS, max(1, 0.09 * SCALE))
+        add_grouped_segment(group, start, end, pcbnew.Edge_Cuts, max(1, 0.09 * SCALE))
+
+
+def build_magnet_markers(group, origin_xy, magnet_poles, magnet_ring_dia, magnet_rotation, magnet_shape, magnet_dia, magnet_width, magnet_height, magnet_keepout, SCALE, add_grouped_silk_circle, add_grouped_circle, add_grouped_rect_outline, get_aux_layer):
+    """Render magnet body and keepout markers for the offset magnet board."""
+    if magnet_poles <= 0:
+        return
+    radius = 0.5 * float(magnet_ring_dia)
+    rot0 = math.radians(magnet_rotation)
+    pitch = 2.0 * math.pi / magnet_poles
+    aux_layer = get_aux_layer()
+    body_width = max(1, 0.12 * SCALE)
+    keepout_width = max(1, 0.08 * SCALE)
+    for idx in range(magnet_poles):
+        angle = rot0 + idx * pitch
+        center = (origin_xy[0] + radius * math.cos(angle), origin_xy[1] + radius * math.sin(angle))
+        if magnet_shape == 'round':
+            body_r = 0.5 * float(magnet_dia)
+            add_grouped_silk_circle(group, center, body_r, width=body_width)
+            if magnet_keepout > 0:
+                add_grouped_circle(group, center, body_r + float(magnet_keepout), aux_layer, keepout_width)
+        else:
+            half_w = 0.5 * float(magnet_width)
+            half_h = 0.5 * float(magnet_height)
+            add_grouped_rect_outline(group, center, half_w, half_h, angle, pcbnew.F_SilkS, body_width)
+            if magnet_keepout > 0:
+                add_grouped_rect_outline(group, center, half_w + float(magnet_keepout), half_h + float(magnet_keepout), angle, aux_layer, keepout_width)
+
+
+def add_linear_hole_scale_at(group, center_xy, radial_angle, hole_radius, origin_xy, SCALE, step_deg, angle_span, add_npth_hole, add_grouped_silk_segment, rotate_about_xy):
+    """Draw grouped corner hole scale helpers around an offset origin."""
+    cx, cy = center_xy
+    axis_dir = (math.cos(radial_angle), math.sin(radial_angle))
+    perp_dir = (-math.sin(radial_angle), math.cos(radial_angle))
+    inward = (-perp_dir[0], -perp_dir[1])
+    step_deg = max(0.1, float(step_deg))
+    hole_count = max(3, int(round((2.0 * angle_span) / step_deg)) + 1)
+
+    if hole_count <= 1:
+        hole_angles = [radial_angle]
+    else:
+        start = radial_angle - math.radians(angle_span)
+        stop = radial_angle + math.radians(angle_span)
+        delta = (stop - start) / float(hole_count - 1)
+        hole_angles = [start + idx * delta for idx in range(hole_count)]
+
+    arc_radius = math.hypot(cx - origin_xy[0], cy - origin_xy[1])
+    for idx, angle in enumerate(hole_angles):
+        hc = (
+            origin_xy[0] + arc_radius * math.cos(angle),
+            origin_xy[1] + arc_radius * math.sin(angle),
+        )
+        fp = add_npth_hole(hc, hole_radius, f"{int(origin_xy[0])}_{int(origin_xy[1])}_{idx}")
+        if group is not None and fp is not None:
+            group.AddItem(fp)
+
+    helper_center = (
+        cx + inward[0] * (hole_radius + 0.25 * SCALE),
+        cy + inward[1] * (hole_radius + 0.25 * SCALE),
+    )
+    helper_half_len = max(1.2 * SCALE, 0.8 * hole_radius)
+    p0 = (
+        helper_center[0] - axis_dir[0] * helper_half_len,
+        helper_center[1] - axis_dir[1] * helper_half_len,
+    )
+    p1 = (
+        helper_center[0] + axis_dir[0] * helper_half_len,
+        helper_center[1] + axis_dir[1] * helper_half_len,
+    )
+    add_grouped_silk_segment(group, p0, p1, width=max(1, 0.10 * SCALE))
+
+    def add_rotated_line_block(step_deg_local, span_deg_local, tick_len, width):
+        count = max(1, int(round(span_deg_local / step_deg_local)))
+        base_q0 = helper_center
+        base_q1 = (
+            helper_center[0] + inward[0] * tick_len,
+            helper_center[1] + inward[1] * tick_len,
+        )
+        for idx in range(-count, count + 1):
+            delta = math.radians(idx * step_deg_local)
+            q0 = rotate_about_xy(base_q0, origin_xy, delta)
+            q1 = rotate_about_xy(base_q1, origin_xy, delta)
+            add_grouped_silk_segment(group, q0, q1, width=width)
+
+    add_rotated_line_block(
+        1.0,
+        angle_span,
+        tick_len=max(7.0 * SCALE, 4.0 * hole_radius),
+        width=max(1, 0.08 * SCALE),
+    )
+    add_rotated_line_block(
+        step_deg,
+        angle_span,
+        tick_len=max(2.2 * SCALE, 1.2 * hole_radius),
+        width=max(1, 0.10 * SCALE),
+    )
+
+
+def build_offset_mounting_holes(group, origin_xy, mhs, fp_lib, fp, ni_gnd, n_mh_out, r_mh_out, n_edges, n_mh_in, r_mh_in, silk_hole_scales, SCALE, iter_corner_points_for_origin, add_mounting_hole_fp_at, add_linear_hole_scale_at_fn):
+    """Render offset mounting holes and optional corner scales."""
+    if mhs == "None" or not fp_lib or not fp:
+        return
+
+    if n_mh_out > 0:
+        outer_radius = float(r_mh_out)
+        if n_edges > 0:
+            outer_radius /= max(math.cos(math.pi / n_edges), 1e-6)
+        th0 = 2 * math.pi / n_mh_out
+        for idx in range(n_mh_out):
+            pos = (
+                origin_xy[0] + outer_radius * math.cos(th0 * idx + th0 / 2.0),
+                origin_xy[1] + outer_radius * math.sin(th0 * idx + th0 / 2.0),
+            )
+            add_mounting_hole_fp_at(group, pos, fp_lib, fp, f"MMO_{idx}", net=ni_gnd)
+
+    if n_mh_in > 0:
+        th0 = 2 * math.pi / n_mh_in
+        inner_radius = float(r_mh_in)
+        for idx in range(n_mh_in):
+            pos = (
+                origin_xy[0] + inner_radius * math.cos(th0 * idx + th0 / 2.0),
+                origin_xy[1] + inner_radius * math.sin(th0 * idx + th0 / 2.0),
+            )
+            add_mounting_hole_fp_at(group, pos, fp_lib, fp, f"MMI_{idx}", net=ni_gnd)
+
+    if silk_hole_scales:
+        for x, y, angle, dia in iter_corner_points_for_origin(origin_xy):
+            add_linear_hole_scale_at_fn(group, (x, y), angle, max(dia * 0.5, 0.5 * SCALE), origin_xy)
+
 # Methods for kicad
 

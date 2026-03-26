@@ -12,6 +12,30 @@
   - `_add_silk_segment`, `_add_silk_circle_at`, `_add_edge_cuts_circle_at`, `_add_npth_hole_at`, `_add_silk_text`
   - grouped rendering helpers `_add_grouped_segment`, `_add_grouped_circle`, `_add_grouped_rect_outline`
   - magnet-group helpers `_get_magnet_aux_layer`, `_clear_magnet_group`, `_create_magnet_group`, `_add_mounting_hole_fp_at`
+- Offset magnet-board renderer helpers now delegated for `_add_linear_hole_scale`, `_add_linear_hole_scale_at`, `_build_offset_outline`, `_build_offset_mounting_holes`, and `_build_magnet_markers`.
+- Generic persist/controller helpers now delegated to `kmotor_pro_persist.py`: `eda_angle`, `init_persist`, `set_status`, `_format_exception`, `_log_exception`, `_safe_ui_yield`, `_safe_refresh_board`, `_run_action`.
+- Pure solver calculations now delegated to `kmotor_solver.py`: `_angle_delta`, `_nearest_magnet_angle_delta`, `estimate_motor_constants`, `estimate_winding_factor`, `estimate_performance_stats`, `estimate_model_warnings`, `get_effective_coil_strategy`.
+- Magnet validation logic now delegated to `kmotor_solver.py`: `validate_magnet_parameters`, `_get_mounting_hole_dia`, `_iter_magnet_clearance_targets`.
+- Additional pure solver helpers now delegated to `kmotor_solver.py`: `_get_board_span`, `_get_magnet_board_origin`, `_effective_winding_layers`, `_winding_pitch_mm`, `_estimate_turns_per_layer`, `validate_parameters`.
+- Small routing/support helpers now delegated to `kmotor_solver.py`: `get_support_hole_width`, `get_selected_terminal_od_iu`, `hole_collides`.
+- Config/data-model mapping now delegated to `kmotor_solver.py`: `to_motor_config` builds through `build_motor_config(...)`.
+- Stats aggregation now partly delegated to `kmotor_solver.py`: `calculate_stats_breakdown(...)` uses solver-side resistance/length aggregation while board scanning stays local.
+- Additional stats/fill helpers now delegated to `kmotor_solver.py`: `calculate_stats` and the final clamp/min aggregation for `estimate_safe_inner_fill_radius`.
+- Inner-fill clearance math now further delegated to `kmotor_solver.py`: `track_clearance_values` and `pad_clearance_value` support `estimate_safe_inner_fill_radius`.
+- Small UI/persist helpers now delegated to `kmotor_pro_persist.py`: `_update_magnet_summary` and `on_close` persistence handling.
+- Magnet parameter normalization now delegated to `kmotor_solver.py`: `get_magnet_parameters` uses `magnet_parameters_from_values(...)`.
+- Additional small UI/persist helpers now delegated to `kmotor_pro_persist.py`: `_apply_pcb_preset` uses `resolve_pcb_preset(...)`, and `on_btn_clear` uses `clear_group(...)`.
+- Generate-button orchestration now partly delegated to `kmotor_pro_persist.py`: `on_btn_generate` and `on_btn_generate_magnet` use `handle_action_event(...)`.
+- Combined-generate orchestration now partly delegated to `kmotor_pro_persist.py`: `on_btn_generate_both` uses `handle_action_event(...)` plus `run_callbacks(...)`.
+- Save-flow file dialog and JSON write now delegated to `kmotor_pro_persist.py`: `on_btn_save` uses `save_preset_dialog(...)`.
+- Load-flow file dialog and file operations now partly delegated to `kmotor_pro_persist.py`: `on_btn_load` uses `choose_preset_to_load(...)`, `load_json_preset(...)`, and `load_legacy_preset(...)`.
+- Preset combo orchestration now partly delegated to `kmotor_pro_persist.py`: `on_cb_preset` uses `handle_preset_event(...)` and `skip_event(...)`.
+- Additional tiny UI helpers now delegated to `kmotor_pro_persist.py`: `on_cb_outline`, `on_cb_mholes`, and `on_nr_layers`.
+- More combo/enable UI logic now delegated to `kmotor_pro_persist.py`: `on_cb_trmtype`, `on_cb_winding_mode`, and `on_cb_magnet_shape`.
+- PCB preset value-application and repeated post-load UI refresh sequences are now delegated to `kmotor_pro_persist.py`: `_apply_pcb_preset(...)`, `_apply_config_to_gui(...)`, and legacy load refreshes use `apply_pcb_preset_values(...)` and `run_event_callbacks(...)`.
+- Small pure parameter-derivation helpers now live in `kmotor_solver.py`: `get_parameters()` delegates outline edge resolution, phase/terminal scheme mapping, and support-via mode normalization to solver helpers.
+- Repeated widget-read patterns are now centralized in `kmotor_pro_persist.py`: `get_parameters()` and `get_magnet_parameters()` use small helpers like `read_selection(...)`, `read_int(...)`, `read_float(...)`, `read_scaled(...)`, and `read_toggle(...)`.
+- More scaled and radius-based GUI reads now go through `kmotor_pro_persist.py` helpers, so `get_parameters()` is mostly orchestration instead of inline widget conversion math.
 - Validation so far: `python3 -m py_compile` passes for the touched modules.
 - Additional KiCad delegation completed on 2026-03-26:
   - `_add_silk_arc_ticks`, `_add_local_tick_fan`, `_iter_outer_mount_points`
