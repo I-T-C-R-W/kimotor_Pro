@@ -236,6 +236,21 @@ def get_attr(obj, name, default=None):
     return getattr(obj, name, default)
 
 
+def layer_set_for_count(n_layers):
+    lset = [pcbnew.F_Cu]
+    inner_layers = [
+        pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu,
+        pcbnew.In5_Cu, pcbnew.In6_Cu, pcbnew.In7_Cu, pcbnew.In8_Cu,
+        pcbnew.In9_Cu, pcbnew.In10_Cu, pcbnew.In11_Cu, pcbnew.In12_Cu,
+        pcbnew.In13_Cu, pcbnew.In14_Cu, pcbnew.In15_Cu, pcbnew.In16_Cu,
+        pcbnew.In17_Cu, pcbnew.In18_Cu,
+    ]
+    inner_count = max(0, min(len(inner_layers), int(n_layers) - 2))
+    lset.extend(inner_layers[:inner_count])
+    lset.append(pcbnew.B_Cu)
+    return lset
+
+
 def ensure_named_nets(board, *net_names):
     for name in net_names:
         net = board.FindNet(name)
@@ -244,12 +259,38 @@ def ensure_named_nets(board, *net_names):
             board.Add(net)
 
 
+def first_present_env(keys):
+    for key in keys:
+        value = os.getenv(key, default=None)
+        if value:
+            return value
+    return None
+
+
+def log_missing_settings_file():
+    wx.LogError("Settings file not found.")
+
+
+def first_present_value(mapping, keys):
+    for key in keys:
+        value = mapping.get(key)
+        if value:
+            return value
+    return None
+
+
 def footprint_env_keys(kicad_version):
     return (
         f"KICAD{kicad_version}_FOOTPRINT_DIR",
         "KICAD_FOOTPRINT_DIR",
         "KICAD6_FOOTPRINT_DIR",
     )
+
+
+def load_kicad_env_vars(settings_path):
+    with open(os.path.join(settings_path, "kicad_common.json"), "r", encoding="utf-8") as handle:
+        data = json.load(handle)
+    return data.get("environment", {}).get("vars") or {}
 
 
 def normalize_dir_path(path):

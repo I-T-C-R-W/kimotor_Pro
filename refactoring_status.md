@@ -47,6 +47,10 @@
 - Basic board net bootstrap now lives in `kmotor_pro_persist.py` via `ensure_named_nets(...)`, so `init_nets()` is down to a thin controller call.
 - The missing-footprint-dir error message now lives in `kmotor_pro_persist.py` via `log_missing_footprint_dir(...)`, shaving one more tiny UI/logging branch out of `init_path()`.
 - `init_path()` now shares footprint env-key selection and path normalization through `footprint_env_keys(...)` and `normalize_dir_path(...)` in `kmotor_pro_persist.py`.
+- Layer-set expansion for board stack size now lives in `kmotor_pro_persist.py` via `layer_set_for_count(...)`, removing another deterministic helper from the controller.
+- Reading KiCad environment vars from `kicad_common.json` is now centralized in `kmotor_pro_persist.py` via `load_kicad_env_vars(...)`, slimming the front half of `init_path()`.
+- `init_path()` now also reuses `first_present_value(...)` from `kmotor_pro_persist.py` to choose the first available footprint env var instead of open-coded looping.
+- `init_path()` now also uses `first_present_env(...)` and `log_missing_settings_file()` from `kmotor_pro_persist.py`, removing the last two tiny open-coded branches in that setup path.
 - Validation so far: `python3 -m py_compile` passes for the touched modules.
 - Additional KiCad delegation completed on 2026-03-26:
   - `_add_silk_arc_ticks`, `_add_local_tick_fan`, `_iter_outer_mount_points`

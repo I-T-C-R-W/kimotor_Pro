@@ -986,22 +986,19 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         self.fp_path = None
         settings = pcbnew.SETTINGS_MANAGER.GetUserSettingsPath()
         try:
-            with open(settings+'/kicad_common.json', 'r') as f:
-                data = json.load(f)
-                env_vars = data.get("environment", {}).get("vars") or {}
-                for key in kpers.footprint_env_keys(self.KICAD_VERSION):
-                    if env_vars.get(key):
-                        self.fp_path = env_vars[key]
-                        break
+            env_vars = kpers.load_kicad_env_vars(settings)
+            self.fp_path = kpers.first_present_value(
+                env_vars,
+                kpers.footprint_env_keys(self.KICAD_VERSION),
+            )
         except IOError:
-            wx.LogError("Settings file not found.")
+            kpers.log_missing_settings_file()
             return
 
         if self.fp_path is None:
-            for key in kpers.footprint_env_keys(self.KICAD_VERSION):
-                self.fp_path = os.getenv(key, default=None)
-                if self.fp_path:
-                    break
+            self.fp_path = kpers.first_present_env(
+                kpers.footprint_env_keys(self.KICAD_VERSION)
+            )
 
         if self.fp_path is not None:
             self.fp_path = kpers.normalize_dir_path(self.fp_path)
@@ -1012,36 +1009,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         kpers.ensure_named_nets(self.board, "gnd", "coil")
 
     def udpate_lset(self, n_layers):
-        lset =[pcbnew.F_Cu]
-        if n_layers >= 4:
-            lset.append(pcbnew.In1_Cu)
-            lset.append(pcbnew.In2_Cu)
-        if n_layers >= 6:
-            lset.append(pcbnew.In3_Cu)
-            lset.append(pcbnew.In4_Cu)
-        if n_layers >= 8:
-            lset.append(pcbnew.In5_Cu)
-            lset.append(pcbnew.In6_Cu)
-        if n_layers >= 10:
-            lset.append(pcbnew.In7_Cu)
-            lset.append(pcbnew.In8_Cu)
-        if n_layers >= 12:
-            lset.append(pcbnew.In9_Cu)
-            lset.append(pcbnew.In10_Cu)
-        if n_layers >= 14:
-            lset.append(pcbnew.In11_Cu)
-            lset.append(pcbnew.In12_Cu)
-        if n_layers >= 16:
-            lset.append(pcbnew.In13_Cu)
-            lset.append(pcbnew.In14_Cu)
-        if n_layers >= 18:
-            lset.append(pcbnew.In15_Cu)
-            lset.append(pcbnew.In16_Cu)
-        if n_layers >= 20:
-            lset.append(pcbnew.In17_Cu)
-            lset.append(pcbnew.In18_Cu)   
-        lset.append(pcbnew.B_Cu)
-        return lset
+        return kpers.layer_set_for_count(n_layers)
 
     def generate(self):
         self.set_status("Running")
