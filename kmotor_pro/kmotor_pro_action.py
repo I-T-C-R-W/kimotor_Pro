@@ -1020,24 +1020,15 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             if validation_errors:
                 raise ValueError("\n".join(validation_errors))
 
-            radial_available = self.r_coil_out - self.r_coil_in
-            radial_required = self.n_loops * self.dr + self.trk_w
-            inner_half_width = self.r_coil_in * math.sin(math.pi / self.n_slots)
-            angular_required = self.n_loops * self.dr + (self.trk_w / 2)
-
-            error_msg = ""
-            if radial_required > radial_available:
-                error_msg += (f"- Nicht genug radialer Platz!\n"
-                            f"  Verfügbar: {radial_available/self.SCALE:.2f} mm\n"
-                            f"  Benötigt: {radial_required/self.SCALE:.2f} mm\n\n")
-            
-            if angular_required >= inner_half_width:
-                max_loops_estimated = int((inner_half_width - (self.trk_w / 2)) / self.dr)
-                if max_loops_estimated < 0:
-                    max_loops_estimated = 0
-                error_msg += (f"- Nicht genug Platz im Zentrum (Kollision)!\n"
-                            f"  Bei {self.n_slots} Slots und einem Innenradius von {self.r_coil_in/self.SCALE:.2f} mm "
-                            f"sind maximal ca. {max_loops_estimated} Loops möglich.\n")
+            error_msg = ksolve.validate_generate_geometry(
+                self.r_coil_in,
+                self.r_coil_out,
+                self.n_loops,
+                self.dr,
+                self.trk_w,
+                self.n_slots,
+                self.SCALE,
+            )
 
             if error_msg:
                 wx.MessageBox(
@@ -1094,14 +1085,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                     fill_inner_area_gnd=self.fill_inner_gnd,
                     fill_outer_area_gnd=self.fill_outer_gnd)
             
-            if hasattr(self.board, 'BuildConnectivity'):
-                self.board.BuildConnectivity()
-                
-            pcbnew.Refresh()
-            try:
-                pcbnew.UpdateUserInterface()
-            except AttributeError:
-                pass
+            kpers.refresh_board_view(self.board)
 
             temp = self.m_ambT.GetValue()
             stats = self.calculate_stats_breakdown(self.board, net_name="coil", temp=temp)
@@ -1136,13 +1120,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                 self.lbl_stallTorque.SetLabel('%.4f' % perf_stats["stall_torque_est"])
 
             self.do_silkscreen(self.r_coil_out + self.trk_w, self.r_coil_in, self.th0)
-            if hasattr(self.board, 'BuildConnectivity'):
-                self.board.BuildConnectivity()
-            pcbnew.Refresh()
-            try:
-                pcbnew.UpdateUserInterface()
-            except AttributeError:
-                pass
+            kpers.refresh_board_view(self.board)
 
             self.btn_clear.Enable(True)
             skipped = int(getattr(self, "support_hole_collision_count", 0))

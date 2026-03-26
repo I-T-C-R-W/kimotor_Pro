@@ -328,6 +328,33 @@ def estimate_model_warnings(stats, perf_stats, magnet_b_est, magnet_poles):
     return warnings
 
 
+def validate_generate_geometry(r_coil_in, r_coil_out, n_loops, dr, trk_w, n_slots, scale):
+    radial_available = r_coil_out - r_coil_in
+    radial_required = n_loops * dr + trk_w
+    inner_half_width = r_coil_in * math.sin(math.pi / max(n_slots, 1))
+    angular_required = n_loops * dr + (trk_w / 2)
+
+    error_msg = ""
+    if radial_required > radial_available:
+        error_msg += (
+            f"- Nicht genug radialer Platz!\n"
+            f"  Verfügbar: {radial_available/scale:.2f} mm\n"
+            f"  Benötigt: {radial_required/scale:.2f} mm\n\n"
+        )
+
+    if angular_required >= inner_half_width:
+        max_loops_estimated = int((inner_half_width - (trk_w / 2)) / max(dr, 1))
+        if max_loops_estimated < 0:
+            max_loops_estimated = 0
+        error_msg += (
+            f"- Nicht genug Platz im Zentrum (Kollision)!\n"
+            f"  Bei {n_slots} Slots und einem Innenradius von {r_coil_in/scale:.2f} mm "
+            f"sind maximal ca. {max_loops_estimated} Loops möglich.\n"
+        )
+
+    return error_msg
+
+
 def get_effective_coil_strategy(ri, ro, n_slots, n_loops, dr, trk_w, strategy, max_spec):
     radial_available = max(ro - ri, 0.0)
     radial_required = max(n_loops * dr + trk_w, dr)

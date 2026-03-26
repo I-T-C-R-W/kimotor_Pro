@@ -59,6 +59,10 @@ def safe_ui_yield(dialog):
         pass
 
 
+def refresh_board_view(board):
+    safe_refresh_board(board)
+
+
 def safe_refresh_board(board):
     try:
         board.BuildConnectivity()

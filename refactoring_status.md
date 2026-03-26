@@ -51,6 +51,8 @@
 - Reading KiCad environment vars from `kicad_common.json` is now centralized in `kmotor_pro_persist.py` via `load_kicad_env_vars(...)`, slimming the front half of `init_path()`.
 - `init_path()` now also reuses `first_present_value(...)` from `kmotor_pro_persist.py` to choose the first available footprint env var instead of open-coded looping.
 - `init_path()` now also uses `first_present_env(...)` and `log_missing_settings_file()` from `kmotor_pro_persist.py`, removing the last two tiny open-coded branches in that setup path.
+- The pre-routing geometry collision check in `generate()` now lives in `kmotor_solver.py` via `validate_generate_geometry(...)`, leaving only the UI error handling in the controller.
+- The repeated board connectivity/refresh/UI-update cycle in `generate()` now goes through `refresh_board_view(...)` in `kmotor_pro_persist.py`.
 - Validation so far: `python3 -m py_compile` passes for the touched modules.
 - Additional KiCad delegation completed on 2026-03-26:
   - `_add_silk_arc_ticks`, `_add_local_tick_fan`, `_iter_outer_mount_points`
