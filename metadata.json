@@ -1,6 +1,6 @@
 {
   "name": "KiMotor Pro",
-  "identifier": "com.github.I-T-C-R-W.kimotor_pro",
+  "identifier": "com.github.I-T-C-R-W.kmotor-pro",
   "type": "plugin",
   "description": "Parametric PCB motor generator for KiCad (KiMotor Pro fork).",
   "author": {
