@@ -217,6 +217,21 @@ def assign_attributes(target, values):
     return target
 
 
+def prepare_model_inputs(*callbacks):
+    try:
+        for callback in callbacks:
+            callback()
+    except Exception:
+        return False
+    return True
+
+
+def resolve_stats(stats, fallback):
+    if stats is None:
+        return fallback or {}
+    return stats or {}
+
+
 def save_preset_dialog(parent, json_str, default_filename="kmotor_pro.json"):
     with wx.FileDialog(
         parent,

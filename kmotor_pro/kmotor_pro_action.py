@@ -783,10 +783,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
     def estimate_motor_constants(self, stats=None):
         if stats is None:
             stats = getattr(self, "last_stats", None)
-        try:
-            self.get_parameters()
-            self.get_magnet_parameters()
-        except Exception:
+        if not kpers.prepare_model_inputs(self.get_parameters, self.get_magnet_parameters):
             return {"ke_est": 0.0, "kt_est": 0.0, "kv_est": 0.0}
 
         return ksolve.estimate_motor_constants(
@@ -800,10 +797,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         )
 
     def estimate_winding_factor(self):
-        try:
-            self.get_parameters()
-            self.get_magnet_parameters()
-        except Exception:
+        if not kpers.prepare_model_inputs(self.get_parameters, self.get_magnet_parameters):
             return 0.0
 
         return ksolve.estimate_winding_factor(
@@ -815,8 +809,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         )
 
     def estimate_performance_stats(self, stats=None, motor_consts=None):
-        if stats is None:
-            stats = getattr(self, "last_stats", {}) or {}
+        stats = kpers.resolve_stats(stats, getattr(self, "last_stats", {}))
         if motor_consts is None:
             motor_consts = self.estimate_motor_constants(stats)
 
@@ -827,8 +820,7 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         )
 
     def estimate_model_warnings(self, stats=None, motor_consts=None, perf_stats=None):
-        if stats is None:
-            stats = getattr(self, "last_stats", {}) or {}
+        stats = kpers.resolve_stats(stats, getattr(self, "last_stats", {}))
         if motor_consts is None:
             motor_consts = self.estimate_motor_constants(stats)
         if perf_stats is None:

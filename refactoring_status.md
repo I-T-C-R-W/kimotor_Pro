@@ -38,6 +38,8 @@
 - More scaled and radius-based GUI reads now go through `kmotor_pro_persist.py` helpers, so `get_parameters()` is mostly orchestration instead of inline widget conversion math.
 - Remaining UI-read edge cases now use shared persist helpers too: selection index, fallback combo selection, and nonnegative scaled reads are centralized in `kmotor_pro_persist.py`.
 - Magnet parameter assignment is now centralized through `assign_attributes(...)` in `kmotor_pro_persist.py`, so `get_magnet_parameters()` only reads values and applies the normalized solver result.
+- Repeated model-input preparation for estimate helpers is now centralized in `kmotor_pro_persist.py` via `prepare_model_inputs(...)`, trimming duplicate try/except setup in the controller.
+- Estimate helpers now share `resolve_stats(...)` from `kmotor_pro_persist.py`, removing another pair of duplicated `last_stats` fallback blocks from the controller.
 - Validation so far: `python3 -m py_compile` passes for the touched modules.
 - Additional KiCad delegation completed on 2026-03-26:
   - `_add_silk_arc_ticks`, `_add_local_tick_fan`, `_iter_outer_mount_points`
