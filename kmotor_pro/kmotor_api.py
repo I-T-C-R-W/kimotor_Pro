@@ -18,9 +18,9 @@ class KMotorProPlugin(pcbnew.ActionPlugin):
         self.icon_file_name = os.path.join(os.path.dirname(__file__), 'kmotor_pro_24x24.png')
 
     def Run(self):
-        from .kmotor_gui import KMotorProGUI
+        from .kmotor_pro_action import KMotorProDialog
         self.frame = wx.FindWindowByName("PcbFrame")
         self.board = pcbnew.GetBoard()
-        dlg = KMotorProGUI(self.frame)
+        dlg = KMotorProDialog(self.frame, self.board)
         dlg.SetIcon(wx.Icon(self.icon_file_name))
         dlg.Show()

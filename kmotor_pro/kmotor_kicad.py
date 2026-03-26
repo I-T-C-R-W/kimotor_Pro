@@ -182,740 +182,226 @@ def add_silk_text(board, text, pos_xy, fpoint, fsize, txt_size, SCALE, size_scal
     txt.SetLayer(pcbnew.F_SilkS)
     board.Add(txt)
     return txt
-# Methods for kicad
+def add_grouped_segment(board, group, start_xy, end_xy, layer, width, fpoint):
+    """Add a segment to the board and optionally to a group."""
+    seg = pcbnew.PCB_SHAPE(board, pcbnew.SHAPE_T_SEGMENT)
+    seg.SetStart(as_point(start_xy[0], start_xy[1], fpoint))
+    seg.SetEnd(as_point(end_xy[0], end_xy[1], fpoint))
+    seg.SetLayer(layer)
+    seg.SetWidth(int(width))
+    board.Add(seg)
+    if group is not None:
+        group.AddItem(seg)
+    return seg
 
 
-
-    def _get_pcb_text_position(self, text_size):
-        margin = max(2.0 * text_size, 1.2 * self.SCALE)
-        outer = self._get_outline_outer_radius()
-        inner_limit = max(float(self.r_coil_out) + self.trk_w + margin, 0.0)
-        radius = max(inner_limit, outer - margin)
-        radius = min(radius, outer - text_size)
-        if radius <= inner_limit:
-            radius = inner_limit
-
-        angles = (-math.pi / 4.0, math.pi / 4.0)
-        mounting_radii = [self.r_mh_out, self.r_mh_in]
-        for angle in angles:
-            x = radius * math.cos(angle)
-            y = radius * math.sin(angle)
-            blocked = False
-            for mount_r in mounting_radii:
-                if mount_r <= 0:
-                    continue
-                if abs(math.hypot(x, y) - mount_r) <= max(self.w_mnt, margin):
-                    blocked = True
-                    break
-            if not blocked:
-                return self._as_point(x, y)
-        return self._as_point(radius * math.cos(angles[0]), radius * math.sin(angles[0]))
+def add_grouped_circle(board, group, center_xy, radius, layer, width, fpoint):
+    """Add a circle to the board and optionally to a group."""
+    circle = pcbnew.PCB_SHAPE(board)
+    circle.SetShape(pcbnew.SHAPE_T_CIRCLE)
+    circle.SetFilled(False)
+    circle.SetStart(as_point(center_xy[0], center_xy[1], fpoint))
+    circle.SetEnd(as_point(center_xy[0] + radius, center_xy[1], fpoint))
+    circle.SetCenter(as_point(center_xy[0], center_xy[1], fpoint))
+    circle.SetLayer(layer)
+    circle.SetWidth(int(width))
+    board.Add(circle)
+    if group is not None:
+        group.AddItem(circle)
+    return circle
 
 
-
-    def _add_silk_segment(self, start_xy, end_xy, width=None, clip_to_outline=False, clip_margin=0.0):
-        if clip_to_outline:
-            clipped = self._clip_segment_to_outline_box(start_xy, end_xy, clip_margin)
-            if clipped is None:
-                return None
-            start_xy, end_xy = clipped
-        seg = pcbnew.PCB_SHAPE(self.board, pcbnew.SHAPE_T_SEGMENT)
-        seg.SetStart(self._as_point(start_xy[0], start_xy[1]))
-        seg.SetEnd(self._as_point(end_xy[0], end_xy[1]))
-        seg.SetLayer(pcbnew.F_SilkS)
-        seg.SetWidth(int(width if width is not None else max(1, 0.127 * self.SCALE)))
-        self.board.Add(seg)
-        return seg
+def get_magnet_aux_layer():
+    """Return the auxiliary layer used for magnet keepout helpers."""
+    return getattr(pcbnew, 'Dwgs_User', pcbnew.F_SilkS)
 
 
-
-    def _add_silk_circle(self, radius, width=None):
-        return self._add_silk_circle_at((0.0, 0.0), radius, width)
-
-
-
-    def _add_silk_circle_at(self, center_xy, radius, width=None):
-        circle = pcbnew.PCB_SHAPE(self.board)
-        circle.SetShape(pcbnew.SHAPE_T_CIRCLE)
-        circle.SetFilled(False)
-        cx, cy = center_xy
-        circle.SetStart(self._as_point(cx, cy))
-        circle.SetEnd(self._as_point(cx + radius, cy))
-        circle.SetCenter(self._as_point(cx, cy))
-        circle.SetLayer(pcbnew.F_SilkS)
-        circle.SetWidth(int(width if width is not None else max(1, 0.127 * self.SCALE)))
-        self.board.Add(circle)
-        return circle
+def add_grouped_rect_outline(board, group, center_xy, half_w, half_h, angle, layer, width, fpoint):
+    """Add a rotated rectangle outline as four grouped segments."""
+    tang = (-math.sin(angle), math.cos(angle))
+    rad = (math.cos(angle), math.sin(angle))
+    pts = []
+    for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+        px = center_xy[0] + tang[0] * (sx * half_w) + rad[0] * (sy * half_h)
+        py = center_xy[1] + tang[1] * (sx * half_w) + rad[1] * (sy * half_h)
+        pts.append((px, py))
+    for idx in range(4):
+        add_grouped_segment(board, group, pts[idx], pts[(idx + 1) % 4], layer, width, fpoint)
+    return pts
 
 
-
-    def _add_edge_cuts_circle_at(self, center_xy, radius, width=None):
-        circle = pcbnew.PCB_SHAPE(self.board)
-        circle.SetShape(pcbnew.SHAPE_T_CIRCLE)
-        circle.SetFilled(False)
-        cx, cy = center_xy
-        circle.SetStart(self._as_point(cx, cy))
-        circle.SetEnd(self._as_point(cx + radius, cy))
-        circle.SetCenter(self._as_point(cx, cy))
-        circle.SetLayer(pcbnew.Edge_Cuts)
-        circle.SetWidth(int(width if width is not None else max(1, 0.09 * self.SCALE)))
-        self.board.Add(circle)
-        return circle
-
-
-
-    def _add_npth_hole_at(self, center_xy, radius, index):
-        fp = pcbnew.FOOTPRINT(self.board)
-        fp.SetReference(f"KMH_{index}")
-        fp.SetValue("")
-        fp.SetPosition(self._as_point(0, 0))
-        if hasattr(fp, "Reference"):
-            try:
-                fp.Reference().SetVisible(False)
-            except Exception:
-                pass
-        if hasattr(fp, "Value"):
-            try:
-                fp.Value().SetVisible(False)
-            except Exception:
-                pass
-
-        pad = pcbnew.PAD(fp)
-        dia = int(max(2.0 * radius, 1))
-        pad.SetAttribute(pcbnew.PAD_ATTRIB_NPTH)
-        pad.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
-        pad.SetDrillSize(self.fsize(dia, dia))
-        pad.SetSize(self.fsize(dia, dia))
-        pad.SetPosition(self._as_point(center_xy[0], center_xy[1]))
+def clear_magnet_group(board, magnet_group):
+    """Remove all items in an existing magnet group and delete the group."""
+    if not magnet_group:
+        return None
+    try:
+        items = list(magnet_group.GetItems())
+    except Exception:
+        items = []
+    for item in items:
         try:
-            pad.SetLayerSet(pcbnew.LSET.AllCuMask())
+            board.RemoveNative(item)
         except Exception:
-            pass
-        fp.Add(pad)
-        self.board.Add(fp)
-        return fp
+            try:
+                board.Remove(item)
+            except Exception:
+                pass
+    try:
+        magnet_group.RemoveAll()
+    except Exception:
+        pass
+    try:
+        board.Remove(magnet_group)
+    except Exception:
+        pass
+    return None
 
 
-
-    def _add_silk_arc_ticks(self, radius, angle_start, angle_end, step_deg=1.0, tick_inner=0.8, tick_outer=0.0, major_step=5):
-        angle = angle_start
-        while angle <= angle_end + 1e-9:
-            deg = int(round(math.degrees(angle)))
-            tick_len = tick_inner * self.SCALE
-            if deg % 10 == 0:
-                tick_len *= 3.2
-            elif major_step and deg % major_step == 0:
-                tick_len *= 2.0
-            r0 = radius - tick_len
-            r1 = radius + (tick_outer * self.SCALE)
-            a = angle
-            p0 = (r0 * math.cos(a), r0 * math.sin(a))
-            p1 = (r1 * math.cos(a), r1 * math.sin(a))
-            self._add_silk_segment(p0, p1)
-            angle += math.radians(step_deg)
+def create_magnet_group(board, name='magnet_pcb'):
+    """Create and add a fresh PCB group for magnet helpers."""
+    group = pcbnew.PCB_GROUP(board)
+    group.SetName(name)
+    board.Add(group)
+    return group
 
 
+def add_mounting_hole_fp_at(board, group, center_xy, fp_lib, fp_name, ref, fpoint, net=None):
+    """Load a footprint, place it, and optionally attach it to a group."""
+    fp = pcbnew.FootprintLoad(fp_lib, fp_name)
+    if fp is None:
+        return None
+    fp.Reference().SetVisible(False)
+    fp.Value().SetVisible(False)
+    fp.SetReference(ref)
+    fp.SetPosition(as_point(center_xy[0], center_xy[1], fpoint))
+    if net is not None:
+        for pad in fp.Pads():
+            pad.SetNet(net)
+    board.Add(fp)
+    if group is not None:
+        group.AddItem(fp)
+    return fp
 
-    def _add_local_tick_fan(self, center_xy, base_angle, fan_deg=18.0, radius_mm=3.0):
-        cx, cy = center_xy
-        radius = radius_mm * self.SCALE
-        start = math.radians(-fan_deg)
-        end = math.radians(fan_deg)
-        angle = start
-        while angle <= end + 1e-9:
-            deg = int(round(abs(math.degrees(angle))))
-            if deg % 10 == 0:
-                tick = 1.2 * self.SCALE
-            elif deg % 5 == 0:
-                tick = 0.8 * self.SCALE
-            else:
-                tick = 0.45 * self.SCALE
-            local_angle = base_angle + angle
-            p0 = (cx + (radius - tick) * math.cos(local_angle), cy + (radius - tick) * math.sin(local_angle))
-            p1 = (cx + radius * math.cos(local_angle), cy + radius * math.sin(local_angle))
-            self._add_silk_segment(p0, p1)
-            angle += math.radians(1.0)
-
-
-
-    def _add_linear_hole_scale(self, center_xy, radial_angle, hole_radius):
-        cx, cy = center_xy
-        radial = np.array([math.cos(radial_angle), math.sin(radial_angle)])
-        axis_dir = np.array([math.cos(radial_angle), math.sin(radial_angle)])
-        perp_dir = np.array([-math.sin(radial_angle), math.cos(radial_angle)])
-        inward = -radial
-        step_deg = max(0.1, float(getattr(self, "corner_scale_step_deg", 1.0)))
-        base_hole_count = max(1, int(getattr(self, "corner_hole_count", 4)))
-        angle_span = float(getattr(self, "corner_scale_span_deg", 5.0))
-        auto_hole_count = max(3, int(round((2.0 * angle_span) / step_deg)) + 1)
-        hole_count = max(base_hole_count, auto_hole_count)
-
-        arc_radius = math.hypot(cx, cy)
-        hole_arc_center = np.array([0.0, 0.0])
-        hole_angles = np.linspace(
-            radial_angle - math.radians(angle_span),
-            radial_angle + math.radians(angle_span),
-            hole_count,
-        )
-        hole_positions = []
-        for hole_idx, angle in enumerate(hole_angles):
-            hc = hole_arc_center + np.array([arc_radius * math.cos(angle), arc_radius * math.sin(angle)])
-            hole_positions.append(hc)
-            self._add_npth_hole_at((hc[0], hc[1]), hole_radius, hole_idx)
-
-        # Base construction:
-        # - 0deg hole center is the offset point
-        # - helper line is parallel to the corner diagonal and shifted inward by r_hole
-        # - holes stay on the outer side of the helper line
-        # - coarse/fine marks stand perpendicular on the inner side of that helper line
-        base_hole_center = np.array([cx, cy])
-        helper_center = base_hole_center + inward * (hole_radius + 0.25 * self.SCALE)
-        helper_half_len = max(1.2 * self.SCALE, 0.8 * hole_radius)
-        p0 = helper_center - axis_dir * helper_half_len
-        p1 = helper_center + axis_dir * helper_half_len
-        self._add_silk_segment(
-            tuple(p0),
-            tuple(p1),
-            width=max(1, 0.10 * self.SCALE),
-            clip_to_outline=True,
-            clip_margin=0.35 * self.SCALE,
-        )
+def add_silk_arc_ticks(add_segment, SCALE, radius, angle_start, angle_end, step_deg=1.0, tick_inner=0.8, tick_outer=0.0, major_step=5):
+    """Draw degree tick marks along a circular guide."""
+    angle = angle_start
+    while angle <= angle_end + 1e-9:
+        deg = int(round(math.degrees(angle)))
+        tick_len = tick_inner * SCALE
+        if deg % 10 == 0:
+            tick_len *= 3.2
+        elif major_step and deg % major_step == 0:
+            tick_len *= 2.0
+        r0 = radius - tick_len
+        r1 = radius + (tick_outer * SCALE)
+        p0 = (r0 * math.cos(angle), r0 * math.sin(angle))
+        p1 = (r1 * math.cos(angle), r1 * math.sin(angle))
+        add_segment(p0, p1)
+        angle += math.radians(step_deg)
 
 
+def add_local_tick_fan(add_segment, SCALE, center_xy, base_angle, fan_deg=18.0, radius_mm=3.0):
+    """Draw a local fan of tick marks around a reference point."""
+    cx, cy = center_xy
+    radius = radius_mm * SCALE
+    angle = math.radians(-fan_deg)
+    end = math.radians(fan_deg)
+    while angle <= end + 1e-9:
+        deg = int(round(abs(math.degrees(angle))))
+        if deg % 10 == 0:
+            tick = 1.2 * SCALE
+        elif deg % 5 == 0:
+            tick = 0.8 * SCALE
+        else:
+            tick = 0.45 * SCALE
+        local_angle = base_angle + angle
+        p0 = (cx + (radius - tick) * math.cos(local_angle), cy + (radius - tick) * math.sin(local_angle))
+        p1 = (cx + radius * math.cos(local_angle), cy + radius * math.sin(local_angle))
+        add_segment(p0, p1)
+        angle += math.radians(1.0)
 
-    def _add_silk_cross_guides(self, radius):
-        corners = self._get_outline_corners()
-        if corners and len(corners) >= 4:
+
+def iter_outer_mount_points(n_edges, corner_hole_offset, corner_hole_dia, corner_hole_count, outline_corners, n_mh_out, r_mh_out, SCALE):
+    """Return outer mounting or corner-alignment points used for silkscreen helpers."""
+    if n_edges == 4 and corner_hole_offset > 0:
+        corners = outline_corners or []
+        if len(corners) >= 4:
             xs = [p[0] for p in corners]
             ys = [p[1] for p in corners]
-            self._add_silk_segment((min(xs), 0.0), (max(xs), 0.0))
-            self._add_silk_segment((0.0, min(ys)), (0.0, max(ys)))
-            self._add_silk_segment(corners[0], corners[2])
-            self._add_silk_segment(corners[1], corners[3])
-            return
-        guide_r = radius
-        self._add_silk_segment((-guide_r, 0.0), (guide_r, 0.0))
-        self._add_silk_segment((0.0, -guide_r), (0.0, guide_r))
-        diag = guide_r / math.sqrt(2.0)
-        self._add_silk_segment((-diag, -diag), (diag, diag))
-        self._add_silk_segment((-diag, diag), (diag, -diag))
-
-
-
-    def _add_silk_slot_frames(self, ri, ro):
-        inner_r = ri
-        outer_r = ro
-        half_slot = math.pi / max(self.n_slots, 1)
-        for idx in range(self.n_slots):
-            a0 = idx * (2 * math.pi / self.n_slots) - half_slot
-            a1 = idx * (2 * math.pi / self.n_slots) + half_slot
-            p00 = (inner_r * math.cos(a0), inner_r * math.sin(a0))
-            p01 = (outer_r * math.cos(a0), outer_r * math.sin(a0))
-            p10 = (inner_r * math.cos(a1), inner_r * math.sin(a1))
-            p11 = (outer_r * math.cos(a1), outer_r * math.sin(a1))
-            self._add_silk_segment(p00, p01)
-            self._add_silk_segment(p10, p11)
-
-
-
-    def _add_silk_hole_scales(self):
-        self._clear_generated_corner_holes()
-        for x, y, angle, dia in self._iter_outer_mount_points():
-            self._add_linear_hole_scale((x, y), angle, max(dia * 0.5, 0.5 * self.SCALE))
-
-
-
-    def _add_silk_text(self, text, pos_xy, size_scale=1.0, align="right"):
-        txt = pcbnew.PCB_TEXT(self.board)
-        txt.SetText(text)
-        size = int(max(self.txt_size * size_scale, 0.4 * self.SCALE))
-        txt.SetTextSize(self.fsize(size, size))
-        txt.SetPosition(self._as_point(pos_xy[0], pos_xy[1]))
-        if hasattr(txt, "SetHorizJustify"):
-            if align == "left":
-                txt.SetHorizJustify(pcbnew.GR_TEXT_H_ALIGN_LEFT)
-            else:
-                txt.SetHorizJustify(pcbnew.GR_TEXT_H_ALIGN_RIGHT)
-        txt.SetLayer(pcbnew.F_SilkS)
-        self.board.Add(txt)
-        return txt
-
-
-
-    def _add_grouped_silk_segment(self, group, start_xy, end_xy, width=None):
-        return self._add_grouped_segment(group, start_xy, end_xy, pcbnew.F_SilkS, width if width is not None else max(1, 0.127 * self.SCALE))
-
-
-
-    def _add_grouped_segment(self, group, start_xy, end_xy, layer, width):
-        seg = pcbnew.PCB_SHAPE(self.board, pcbnew.SHAPE_T_SEGMENT)
-        seg.SetStart(self._as_point(start_xy[0], start_xy[1]))
-        seg.SetEnd(self._as_point(end_xy[0], end_xy[1]))
-        seg.SetLayer(layer)
-        seg.SetWidth(int(width))
-        self.board.Add(seg)
-        if group is not None:
-            group.AddItem(seg)
-        return seg
-
-
-
-    def _add_grouped_silk_circle(self, group, center_xy, radius, width=None):
-        return self._add_grouped_circle(group, center_xy, radius, pcbnew.F_SilkS, width if width is not None else max(1, 0.127 * self.SCALE))
-
-
-
-    def _add_grouped_circle(self, group, center_xy, radius, layer, width):
-        circle = pcbnew.PCB_SHAPE(self.board)
-        circle.SetShape(pcbnew.SHAPE_T_CIRCLE)
-        circle.SetFilled(False)
-        circle.SetStart(self._as_point(center_xy[0], center_xy[1]))
-        circle.SetEnd(self._as_point(center_xy[0] + radius, center_xy[1]))
-        circle.SetCenter(self._as_point(center_xy[0], center_xy[1]))
-        circle.SetLayer(layer)
-        circle.SetWidth(int(width))
-        self.board.Add(circle)
-        if group is not None:
-            group.AddItem(circle)
-        return circle
-
-
-
-    def _add_grouped_edge_circle(self, group, center_xy, radius, width=None):
-        return self._add_grouped_circle(group, center_xy, radius, pcbnew.Edge_Cuts, width if width is not None else max(1, 0.09 * self.SCALE))
-
-
-
-    def _add_grouped_rect_outline(self, group, center_xy, half_w, half_h, angle, layer, width):
-        tang = np.array([-math.sin(angle), math.cos(angle)])
-        rad = np.array([math.cos(angle), math.sin(angle)])
-        pts = []
-        for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
-            p = np.array(center_xy) + tang * (sx * half_w) + rad * (sy * half_h)
-            pts.append((p[0], p[1]))
-        for i in range(4):
-            self._add_grouped_segment(group, pts[i], pts[(i + 1) % 4], layer, width)
-        return pts
-
-
-
-    def _add_mounting_hole_fp_at(self, group, center_xy, fp_lib, fp_name, ref, net=None):
-        m = pcbnew.FootprintLoad(fp_lib, fp_name)
-        if m is None:
-            return None
-        m.Reference().SetVisible(False)
-        m.Value().SetVisible(False)
-        m.SetReference(ref)
-        m.SetPosition(self._as_point(center_xy[0], center_xy[1]))
-        if net is not None:
-            for pad in m.Pads():
-                pad.SetNet(net)
-        self.board.Add(m)
-        if group is not None:
-            group.AddItem(m)
-        return m
-
-
-
-    def _add_linear_hole_scale_at(self, group, center_xy, radial_angle, hole_radius, origin_xy):
-        cx, cy = center_xy
-        axis_dir = np.array([math.cos(radial_angle), math.sin(radial_angle)])
-        perp_dir = np.array([-math.sin(radial_angle), math.cos(radial_angle)])
-        inward = -perp_dir
-        step_deg = max(0.1, float(getattr(self, "corner_scale_step_deg", 1.0)))
-        angle_span = float(getattr(self, "corner_scale_span_deg", 5.0))
-        hole_count = max(3, int(round((2.0 * angle_span) / step_deg)) + 1)
-        hole_angles = np.linspace(
-            radial_angle - math.radians(angle_span),
-            radial_angle + math.radians(angle_span),
-            hole_count,
-        )
-        arc_radius = math.hypot(cx - origin_xy[0], cy - origin_xy[1])
-        for idx, angle in enumerate(hole_angles):
-            hc = (
-                origin_xy[0] + arc_radius * math.cos(angle),
-                origin_xy[1] + arc_radius * math.sin(angle),
-            )
-            fp = self._add_npth_hole_at(hc, hole_radius, f"{int(origin_xy[0])}_{int(origin_xy[1])}_{idx}")
-            if group is not None and fp is not None:
-                group.AddItem(fp)
-
-        helper_center = np.array([cx, cy]) + inward * (hole_radius + 0.25 * self.SCALE)
-        helper_half_len = max(1.2 * self.SCALE, 0.8 * hole_radius)
-        p0 = tuple(helper_center - axis_dir * helper_half_len)
-        p1 = tuple(helper_center + axis_dir * helper_half_len)
-        self._add_grouped_silk_segment(group, p0, p1, width=max(1, 0.10 * self.SCALE))
-
-
-
-    def generate_magnet_pcb(self):
-        self.get_parameters()
-        errors, warnings = self.validate_magnet_parameters()
-        if errors:
-            raise ValueError("\n".join(errors))
-
-        origin_xy = self._get_magnet_board_origin()
-        group = self._create_magnet_group()
-        self._build_offset_outline(group, origin_xy)
-        self._build_offset_mounting_holes(group, origin_xy)
-        self._build_magnet_markers(group, origin_xy)
-
-        if getattr(self, "silk_cross_guides", False):
-            outer = float(self.r_out)
-            self._add_grouped_silk_segment(group, (origin_xy[0] - outer, origin_xy[1]), (origin_xy[0] + outer, origin_xy[1]))
-            self._add_grouped_silk_segment(group, (origin_xy[0], origin_xy[1] - outer), (origin_xy[0], origin_xy[1] + outer))
-
-        summary = (
-            f"Magnet PCB generated at +{origin_xy[0] / self.SCALE:.2f} mm X offset.\n"
-            f"Poles: {self.magnet_poles}\n"
-            f"Ring dia: {self.magnet_ring_dia / self.SCALE:.2f} mm"
-        )
-        if warnings:
-            summary += "\nWarnings:\n- " + "\n- ".join(warnings)
-        self._update_magnet_summary(summary)
-
-
-
-    def add_through_via(self, position, net=None):
-        return self.add_custom_through_via(position, net=net, drill=self.d_drill, width=self.d_via)
-
-
-
-    def add_custom_through_via(self, position, net=None, drill=None, width=None):
-        via = pcbnew.PCB_VIA(self.board)
-        via.SetViaType(pcbnew.VIATYPE_THROUGH)
-        via.SetLayerPair(pcbnew.F_Cu, pcbnew.B_Cu)
-        via.SetPosition(position)
-        via.SetDrill(self.d_drill if drill is None else drill)
-        via.SetWidth(self.d_via if width is None else width)
-        if net is not None:
-            via.SetNet(net)
-        self.board.Add(via)
-        return via
-
-
-
-    def add_support_hole(self, position):
-        pad_margin = int(0.25 * self.SCALE)
-        hole_width = max(self.d_support_hole + pad_margin, self.d_support_hole + 1)
-        return self.add_custom_through_via(position, net=None, drill=self.d_support_hole, width=hole_width)
-
-
-
-    def add_ring_path(layer, radius, th_start, th_end, p_start, p_end, width):
-            """Draw robust ring connection as segmented path (avoids arc edge-case disconnects)."""
-            d_th = th_end - th_start
-            if d_th > math.pi:
-                d_th -= 2 * math.pi
-            elif d_th < -math.pi:
-                d_th += 2 * math.pi
-
-            # Very small angle: direct short track.
-            if abs(d_th) < 1e-4:
-                t = pcbnew.PCB_TRACK(self.board)
-                t.SetLayer(layer)
-                t.SetWidth(width)
-                if net_coil:
-                    t.SetNet(net_coil)
-                t.SetStart(p_start)
-                t.SetEnd(p_end)
-                self.board.Add(t)
-                return
-
-            # 10 degree max step keeps geometry smooth and electrically contiguous.
-            step = math.pi / 18.0
-            nseg = max(2, int(abs(d_th) / step) + 1)
-            prev = p_start
-            for k in range(1, nseg + 1):
-                if k == nseg:
-                    nxt = p_end
-                else:
-                    th_k = th_start + d_th * (k / float(nseg))
-                    nxt = self.fpoint(int(radius * math.cos(th_k)), int(radius * math.sin(th_k)))
-                t = pcbnew.PCB_TRACK(self.board)
-                t.SetLayer(layer)
-                t.SetWidth(width)
-                if net_coil:
-                    t.SetNet(net_coil)
-                t.SetStart(prev)
-                t.SetEnd(nxt)
-                self.board.Add(t)
-                prev = nxt
-
-        # 1. PLATZIERUNG DER ISOLIERTEN STÜTZ-THT-LÖCHER AUSSERHALB DER SPULEN
-        # support_via_mode:
-        # 0 = keine Stützlöcher
-        # 2 = zwei äußere Stützlöcher je Slot
-        # 4 = vier äußere Stützlöcher je Slot
-        r_out_support = self.r_coil_out + self.trk_space + self.trk_w + (support_hole_width / 2.0)
-        th_out_off_a = (th0 / 2.0) * 0.78
-        th_out_off_b = (th0 / 2.0) * 0.48
-        
-        if support_via_mode >= 2:
-            for slot in range(self.n_slots):
-                th_c = slot * th0
-                support_pts_slot = [
-                    self.fpoint(int(r_out_support * math.cos(th_c - th_out_off_a)), int(r_out_support * math.sin(th_c - th_out_off_a))),
-                    self.fpoint(int(r_out_support * math.cos(th_c + th_out_off_a)), int(r_out_support * math.sin(th_c + th_out_off_a))),
-                ]
-
-                for pt in support_pts_slot:
-                    if self.hole_collides(pt, support_pts, support_min_dist):
-                        support_collisions += 1
-                        continue
-                    self.add_support_hole(pt)
-                    support_pts.append(pt)
-
-        # 2. BERECHNUNG DES SICHEREN ABSTANDS FÜR DIE SAMMELSCHIENEN (inkl. Via)
-        if support_via_mode == 0:
-            first_ring_offset = 0
-        elif support_via_mode == 2:
-            first_ring_offset = int(0.5 * max(self.d_via, support_hole_width))
-        else:
-            first_ring_offset = max(self.d_via, support_hole_width)
-        # Give extra clearance to support TH holes near the first ring.
-        if support_via_mode in (2, 4):
-            first_ring_offset += int(0.5 * support_hole_width)
-        current_radius = self.r_coil_in - (self.d_via / 2.0) - self.ring_space - (self.ring_w / 2.0) - first_ring_offset
-        lowest_used_radius = current_radius
-
-        # Mode 4: zusätzlich 2 innere unverbundene Stützlöcher je Slot (nahe Ringanschlüssen).
-        if support_via_mode == 4:
-            # Anchor inner support holes to coil geometry (not current ring radius),
-            # so increasing first-ring inset really increases ring-to-support clearance.
-            r_in_support = self.r_coil_in - (self.d_via / 2.0) - self.trk_space - (support_hole_width / 2.0)
-            th_in_off = (th0 / 2.0) * 0.45
-            for slot in range(self.n_slots):
-                th_c = slot * th0
-                support_pts_slot = [
-                    self.fpoint(int(r_in_support * math.cos(th_c - th_in_off)), int(r_in_support * math.sin(th_c - th_in_off))),
-                    self.fpoint(int(r_in_support * math.cos(th_c + th_in_off)), int(r_in_support * math.sin(th_c + th_in_off))),
-                ]
-                for pt in support_pts_slot:
-                    if self.hole_collides(pt, support_pts, support_min_dist):
-                        support_collisions += 1
-                        continue
-                    self.add_support_hole(pt)
-                    support_pts.append(pt)
-
-        n_phase_coils = int(self.n_slots / phases)
-        ring_levels_total = min(n_rc, 5 if phases >= 3 else 4)
-        ring_levels_total = max(1, ring_levels_total)
-        for p in range(phases):
-            for i in range(n_rc):
-                # Zyklische Ebenen je Verbindung:
-                # - begrenzt die Anzahl Ringebenen (typisch 4/5 statt z.B. 9)
-                # - sorgt dafür, dass in/out-Stubs einer Coil unterschiedlich lang sind
-                level = ((i * phases) + p) % ring_levels_total
-                cri = current_radius - (level * self.ring_dr)
-                if cri < lowest_used_radius:
-                    lowest_used_radius = cri
-
-                slot_a = p + i * phases
-                slot_b = p + (i + 1) * phases
-                if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[slot_a] and self.coil_slot_pins[slot_b]:
-                    c1e = self.coil_slot_pins[slot_a][1]
-                    c2s = self.coil_slot_pins[slot_b][0]
-                else:
-                    c1e = coils[p][i][1]
-                    c2s = coils[p][i+1][0]
-
-                # Löt-Via in die inneren Spulenecken setzen (Netz-Verbindung vorhanden)
-                self.add_through_via(c1e, net_coil)
-                self.add_through_via(c2s, net_coil)
-
-                # 1P mode: direct via-to-via links, no inner ring buses.
-                if phases == 1:
-                    t = pcbnew.PCB_TRACK(self.board)
-                    t.SetLayer(pcbnew.B_Cu)
-                    t.SetWidth(self.trk_w)
-                    if net_coil: t.SetNet(net_coil)
-                    t.SetStart(c1e)
-                    t.SetEnd(c2s)
-                    self.board.Add(t)
-                    continue
-
-                # Schnurgerade radiale Zuleitung auf der UNTERSEITE (B_Cu) zum Sammelring ziehen
-                th1 = math.atan2(c1e.y, c1e.x)
-                via1_pt = self.fpoint(int(cri * math.cos(th1)), int(cri * math.sin(th1)))
-                t1 = pcbnew.PCB_TRACK(self.board)
-                t1.SetLayer(pcbnew.B_Cu)
-                t1.SetWidth(self.trk_w)
-                if net_coil: t1.SetNet(net_coil)
-                t1.SetStart(c1e)
-                t1.SetEnd(via1_pt)
-                self.board.Add(t1)
-
-                th2 = math.atan2(c2s.y, c2s.x)
-                via2_pt = self.fpoint(int(cri * math.cos(th2)), int(cri * math.sin(th2)))
-                t2 = pcbnew.PCB_TRACK(self.board)
-                t2.SetLayer(pcbnew.B_Cu) # Unterquert alle Leitungen der anderen Phasen!
-                t2.SetWidth(self.trk_w)
-                if net_coil: t2.SetNet(net_coil)
-                t2.SetStart(c2s)
-                t2.SetEnd(via2_pt)
-                self.board.Add(t2)
-
-                arc_layer = pcbnew.B_Cu
-                if support_via_mode in (2, 4):
-                    self.add_through_via(via1_pt, net_coil)
-                    self.add_through_via(via2_pt, net_coil)
-                    arc_layer = pcbnew.F_Cu
-
-                # 3. Ring connection robustly as segmented path (no arc discontinuity).
-                add_ring_path(arc_layer, cri, th1, th2, via1_pt, via2_pt, self.ring_w)
-
-        # 4. STERNSCHALTUNG (nur für 3-Phasen Motoren)
-        neutral_tap = None
-        if phases > 1:
-            star_radius = lowest_used_radius - self.ring_dr
-            lowest_used_radius = star_radius
-            star_pts =[]
-            
-            for p in range(phases):
-                last_slot = p + (n_phase_coils - 1) * phases
-                if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[last_slot]:
-                    c_end = self.coil_slot_pins[last_slot][1]
-                else:
-                    c_end = coils[p][-1][1]
-                
-                # Eck-Via für die allerletzte Spule setzen
-                self.add_through_via(c_end, net_coil)
-                
-                th = math.atan2(c_end.y, c_end.x)
-                via_pt = self.fpoint(int(star_radius * math.cos(th)), int(star_radius * math.sin(th)))
-                star_pts.append((th, via_pt))
-                
-                # B_Cu Leitung radial nach unten zum Sternpunkt
-                t = pcbnew.PCB_TRACK(self.board)
-                t.SetLayer(pcbnew.B_Cu)
-                t.SetWidth(self.trk_w)
-                if net_coil: t.SetNet(net_coil)
-                t.SetStart(c_end)
-                t.SetEnd(via_pt)
-                self.board.Add(t)
-                
-                self.add_through_via(via_pt, net_coil)
-
-            star_pts.sort(key=lambda x: x[0])
-            if star_pts:
-                neutral_tap = star_pts[0][1]
-            for i in range(len(star_pts) - 1):
-                th1, pt1 = star_pts[i]
-                th2, pt2 = star_pts[i+1]
-                
-                add_ring_path(pcbnew.F_Cu, star_radius, th1, th2, pt1, pt2, self.ring_w)
-
-            # 3P+N: create a dedicated neutral hub so N is not tied to a phase star point.
-            if self.n_term > phases and len(star_pts) >= 3:
-                ux = 0.0
-                uy = 0.0
-                for pidx in range(phases):
-                    first_slot = pidx
-                    if hasattr(self, "coil_slot_pins") and self.coil_slot_pins[first_slot]:
-                        c0 = self.coil_slot_pins[first_slot][0]
-                        ang = math.atan2(c0.y, c0.x)
-                    else:
-                        ang = star_pts[pidx][0]
-                    ux += math.cos(ang)
-                    uy += math.sin(ang)
-                th_n = math.atan2(uy, ux) if (ux != 0 or uy != 0) else star_pts[0][0]
-                neutral_radius = star_radius - self.ring_dr
-                if neutral_radius <= 0:
-                    neutral_radius = max(star_radius * 0.85, self.d_via * 2.0)
-                neutral_tap = self.fpoint(
-                    int(neutral_radius * math.cos(th_n)),
-                    int(neutral_radius * math.sin(th_n))
-                )
-                self.add_through_via(neutral_tap, net_coil)
-                for _, pt in star_pts:
-                    tn = pcbnew.PCB_TRACK(self.board)
-                    tn.SetLayer(pcbnew.B_Cu)
-                    tn.SetWidth(self.trk_w)
-                    if net_coil: tn.SetNet(net_coil)
-                    tn.SetStart(pt)
-                    tn.SetEnd(neutral_tap)
-                    self.board.Add(tn)
-                if neutral_radius < lowest_used_radius:
-                    lowest_used_radius = neutral_radius
-
-        # 5. FINALE TERMINAL-ANSCHLÜSSE (Zur Platine oder Kabel)
-        term_radius = lowest_used_radius - self.term_offset
-        n_phase_coils = int(self.n_slots / phases) if phases > 0 else 0
-
-
-
-    def do_silkscreen(self, ro, ri, th):
-        slot_deg = 360.0 / max(self.n_slots, 1)
-        stats = getattr(self, "last_stats", {}) or {}
-        phase_r_est = float(stats.get("phase_r_temp", getattr(self, "tr", 0.0)))
-        coil_r_est = float(stats.get("coil_resistance_per_coil", 0.0))
-        build_label = (
-            datetime.today().strftime('%Y%m%d') +
-            "_ly" + str(self.n_layers) +
-            "_s" + str(self.n_slots) +
-            "_w" + str(self.n_loops)
-        )
-
-        for r in [ro,ri]:
-            self._add_silk_circle(r)
-  
-        th_0 = 2*math.pi/self.n_slots
-        la = 0.05
-        for p in range(self.n_slots):
-            xy_s = (
-                (1 + la) * ri * math.cos(th_0 * p),
-                (1 + la) * ri * math.sin(th_0 * p),
-            )
-            xy_e = (
-                (1 - la) * ro * math.cos(th_0 * p),
-                (1 - la) * ro * math.sin(th_0 * p),
-            )
-            self._add_silk_segment(xy_s, xy_e)
-
-        outer_guide_r = max(ro, self._get_outline_outer_radius())
-        degree_ring_r = ro + max(0.9 * self.SCALE, self.trk_space * 2.0)
-        if getattr(self, "silk_cross_guides", False):
-            self._add_silk_cross_guides(outer_guide_r)
-        if getattr(self, "silk_slot_frames", False):
-            self._add_silk_slot_frames(ri, ro)
-        if getattr(self, "silk_deg_scale", False):
-            self._add_silk_circle(degree_ring_r)
-            self._add_silk_arc_ticks(
-                degree_ring_r,
-                0.0,
-                2 * math.pi - math.radians(1.0),
-                step_deg=1.0,
-                tick_inner=0.35,
-                tick_outer=0.0,
-                major_step=10,
-            )
-        if getattr(self, "silk_hole_scales", False):
-            self._add_silk_hole_scales()
-
-        info_anchor = self._get_bottom_right_info_anchor()
-        self._add_silk_text(
-            build_label,
-            (info_anchor[0] - 2.6 * self.SCALE, info_anchor[1]),
-            0.95,
-            "left",
-        )
-        self._add_silk_text(
-            f"slots {self.n_slots} | {slot_deg:.2f} deg/slot",
-            (info_anchor[0] - 2.6 * self.SCALE, info_anchor[1] - 1.8 * self.SCALE),
-            0.95,
-            "left",
-        )
-        self._add_silk_text(
-            f"R / phase: {phase_r_est:.4f} ohm",
-            (info_anchor[0], info_anchor[1] - 3.6 * self.SCALE),
-            0.95,
-            "left",
-        )
-        self._add_silk_text(
-            f"R / coil: {coil_r_est:.4f} ohm",
-            (info_anchor[0], info_anchor[1] - 5.4 * self.SCALE),
-            0.95,
-            "left",
-        )
+            max_x = max(xs)
+            max_y = max(ys)
+            off = float(corner_hole_offset)
+            dia = max(float(corner_hole_dia), 0.0)
+            d = off / math.sqrt(2.0)
+            points = [
+                ( max_x - d,  max_y - d, math.radians(45.0), dia),
+                (-max_x + d,  max_y - d, math.radians(135.0), dia),
+                (-max_x + d, -max_y + d, math.radians(225.0), dia),
+                ( max_x - d, -max_y + d, math.radians(315.0), dia),
+            ]
+            return points[:max(0, min(len(points), int(corner_hole_count)))]
+    if n_mh_out <= 0 or r_mh_out <= 0:
+        return []
+    radius = float(r_mh_out)
+    if n_edges > 0:
+        radius /= max(math.cos(math.pi / n_edges), 1e-6)
+    th0 = 2 * math.pi / n_mh_out
+    points = []
+    for idx in range(n_mh_out):
+        angle = th0 * idx + th0 / 2.0
+        points.append((radius * math.cos(angle), radius * math.sin(angle), angle, max(float(corner_hole_dia), 3.2 * SCALE)))
+    return points
+
+
+def add_silk_cross_guides(add_segment, outline_corners, radius):
+    """Draw cross and diagonal guide lines."""
+    corners = outline_corners or []
+    if len(corners) >= 4:
+        xs = [p[0] for p in corners]
+        ys = [p[1] for p in corners]
+        add_segment((min(xs), 0.0), (max(xs), 0.0))
+        add_segment((0.0, min(ys)), (0.0, max(ys)))
+        add_segment(corners[0], corners[2])
+        add_segment(corners[1], corners[3])
+        return
+    guide_r = radius
+    add_segment((-guide_r, 0.0), (guide_r, 0.0))
+    add_segment((0.0, -guide_r), (0.0, guide_r))
+    diag = guide_r / math.sqrt(2.0)
+    add_segment((-diag, -diag), (diag, diag))
+    add_segment((-diag, diag), (diag, -diag))
+
+
+def add_silk_slot_frames(add_segment, n_slots, ri, ro):
+    """Draw slot frame guide lines between inner and outer radii."""
+    half_slot = math.pi / max(n_slots, 1)
+    for idx in range(n_slots):
+        a0 = idx * (2 * math.pi / n_slots) - half_slot
+        a1 = idx * (2 * math.pi / n_slots) + half_slot
+        p00 = (ri * math.cos(a0), ri * math.sin(a0))
+        p01 = (ro * math.cos(a0), ro * math.sin(a0))
+        p10 = (ri * math.cos(a1), ri * math.sin(a1))
+        p11 = (ro * math.cos(a1), ro * math.sin(a1))
+        add_segment(p00, p01)
+        add_segment(p10, p11)
+
+
+def iter_corner_points_for_origin(n_edges, corner_hole_offset, corner_hole_dia, corner_hole_count, r_out, origin_xy):
+    """Return corner alignment hole points for an offset board origin."""
+    if n_edges == 4 and corner_hole_offset > 0:
+        max_x = float(r_out)
+        max_y = float(r_out)
+        off = float(corner_hole_offset)
+        dia = max(float(corner_hole_dia), 0.0)
+        d = off / math.sqrt(2.0)
+        pts = [
+            ( origin_xy[0] + max_x - d, origin_xy[1] + max_y - d, math.radians(45.0), dia),
+            ( origin_xy[0] - max_x + d, origin_xy[1] + max_y - d, math.radians(135.0), dia),
+            ( origin_xy[0] - max_x + d, origin_xy[1] - max_y + d, math.radians(225.0), dia),
+            ( origin_xy[0] + max_x - d, origin_xy[1] - max_y + d, math.radians(315.0), dia),
+        ]
+        return pts[:max(0, min(len(pts), int(corner_hole_count)))]
+    return []
+
+# Methods for kicad
 

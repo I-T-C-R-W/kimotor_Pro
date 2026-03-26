@@ -18,9 +18,13 @@ import wx.lib.agw.persist.persistencemanager as PM
 import pcbnew
 
 if __name__ == '__main__':
+    import kmotor_geometry as kgeo
+    import kmotor_kicad as kkicad
     import kmotor_pro_gui
     import kmotor_pro_linalg as kla
 else:
+    from . import kmotor_geometry as kgeo
+    from . import kmotor_kicad as kkicad
     from . import kmotor_pro_gui
     from . import kmotor_pro_linalg as kla
     from . import kmotor_pro_solver as ksolve
@@ -328,86 +332,47 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         self.pm.RegisterAndRestoreAll(self)
 
     def _point_xy(self, pt):
-        if hasattr(pt, "x") and hasattr(pt, "y"):
-            return float(pt.x), float(pt.y)
-        try:
-            return float(pt[0,0]), float(pt[0,1])
-        except Exception:
-            flat = np.asarray(pt).reshape(-1)
-            return float(flat[0]), float(flat[1])
+        return kgeo.point_xy(pt)
 
     def _as_point(self, x, y):
-        return self.fpoint(int(round(x)), int(round(y)))
+        return kkicad.as_point(x, y, self.fpoint)
 
     def _item_token(self, item):
-        for getter in ("GetUuid", "GetKIID"):
-            if hasattr(item, getter):
-                try:
-                    kiid = getattr(item, getter)()
-                    if hasattr(kiid, "AsString"):
-                        return kiid.AsString()
-                    return str(kiid)
-                except Exception:
-                    pass
-        if hasattr(item, "m_Uuid"):
-            try:
-                return item.m_Uuid.AsString()
-            except Exception:
-                pass
-        return str(id(item))
+        return kkicad.item_token(item)
 
     def _tag_generated_zone(self, zone, kind):
-        priority = self.GENERATED_ZONE_PRIORITIES[kind]
-        try:
-            zone.SetAssignedPriority(priority)
-        except Exception:
-            pass
-        zone_name = self.GENERATED_ZONE_NAME_PREFIX + kind
-        for setter in ("SetZoneName", "SetName"):
-            if hasattr(zone, setter):
-                try:
-                    getattr(zone, setter)(zone_name)
-                    break
-                except Exception:
-                    pass
-        self.generated_zone_tokens.add(self._item_token(zone))
+        kkicad.tag_generated_zone(
+            zone,
+            kind,
+            self.generated_zone_tokens,
+            self.GENERATED_ZONE_PRIORITIES,
+            self.GENERATED_ZONE_NAME_PREFIX,
+        )
 
     def _is_generated_zone(self, zone):
-        token = self._item_token(zone)
-        if token in self.generated_zone_tokens:
-            return True
-        for getter in ("GetZoneName", "GetName"):
-            if hasattr(zone, getter):
-                try:
-                    name = getattr(zone, getter)()
-                    if name and str(name).startswith(self.GENERATED_ZONE_NAME_PREFIX):
-                        return True
-                except Exception:
-                    pass
-        if hasattr(zone, "GetAssignedPriority"):
-            try:
-                return zone.GetAssignedPriority() in self.GENERATED_ZONE_PRIORITIES.values()
-            except Exception:
-                pass
-        return False
+        return kkicad.is_generated_zone(
+            zone,
+            self.generated_zone_tokens,
+            self.GENERATED_ZONE_PRIORITIES,
+            self.GENERATED_ZONE_NAME_PREFIX,
+        )
 
     def _cleanup_generated_zones(self):
-        zones_to_remove = []
-        for zone in self.board.Zones():
-            if self._is_generated_zone(zone):
-                zones_to_remove.append(zone)
-        for zone in zones_to_remove:
-            self.board.Remove(zone)
+        kkicad.cleanup_generated_zones(
+            self.board,
+            self.generated_zone_tokens,
+            self.GENERATED_ZONE_PRIORITIES,
+            self.GENERATED_ZONE_NAME_PREFIX,
+        )
 
     def _radial_vector(self, angle, radius=1.0):
-        return np.array([radius * math.cos(angle), radius * math.sin(angle)])
+        return kgeo.radial_vector(angle, radius)
 
     def _tangent_vector(self, angle, scale=1.0):
-        return np.array([-scale * math.sin(angle), scale * math.cos(angle)])
+        return kgeo.tangent_vector(angle, scale)
 
     def _point_radius(self, pt):
-        x, y = self._point_xy(pt)
-        return math.hypot(x, y)
+        return kgeo.point_radius(pt)
 
     def _nearest_point_distance(self, radius, angle, pts):
         target = np.array([radius * math.cos(angle), radius * math.sin(angle)])
@@ -420,17 +385,15 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         return best
 
     def _get_outline_outer_radius(self):
-        if self.n_edges == 0:
-            return float(self.r_out)
-        return float(self.r_out) / max(math.cos(math.pi / self.n_edges), 1e-6)
+        return kgeo.outline_outer_radius(self.r_out, self.n_edges)
 
     def _get_outline_corners(self):
         if self.n_edges < 4:
             return None
-        points = self._outline_poly_points(self.r_out, self.n_edges)
+        points = kgeo.outline_poly_points(self.r_out, self.n_edges)
         if not points:
             return None
-        return [self._point_xy(pt) for pt in points]
+        return [kgeo.point_xy(pt) for pt in points]
 
     def _get_outline_bounds(self):
         corners = self._get_outline_corners()
@@ -444,56 +407,16 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         bounds = self._get_outline_bounds()
         if not bounds or self.n_edges != 4:
             return start_xy, end_xy
-
-        xmin, xmax, ymin, ymax = bounds
-        xmin += margin
-        xmax -= margin
-        ymin += margin
-        ymax -= margin
-
-        x0, y0 = start_xy
-        x1, y1 = end_xy
-        dx = x1 - x0
-        dy = y1 - y0
-        p = (-dx, dx, -dy, dy)
-        q = (x0 - xmin, xmax - x0, y0 - ymin, ymax - y0)
-        u1 = 0.0
-        u2 = 1.0
-
-        for pi, qi in zip(p, q):
-            if abs(pi) < 1e-12:
-                if qi < 0:
-                    return None
-                continue
-            t = qi / pi
-            if pi < 0:
-                if t > u2:
-                    return None
-                u1 = max(u1, t)
-            else:
-                if t < u1:
-                    return None
-                u2 = min(u2, t)
-
-        return (
-            (x0 + u1 * dx, y0 + u1 * dy),
-            (x0 + u2 * dx, y0 + u2 * dy),
-        )
+        return kgeo.clip_segment_to_outline_box(start_xy, end_xy, bounds, margin)
 
     def _rotate_xy(self, xy, angle):
-        x, y = xy
-        ca = math.cos(angle)
-        sa = math.sin(angle)
-        return (x * ca - y * sa, x * sa + y * ca)
+        return kgeo.rotate_xy(xy, angle)
 
     def _rotate_about_xy(self, xy, center_xy, angle):
-        x, y = xy
-        cx, cy = center_xy
-        xr, yr = self._rotate_xy((x - cx, y - cy), angle)
-        return (xr + cx, yr + cy)
+        return kgeo.rotate_about_xy(xy, center_xy, angle)
 
     def _offset_xy(self, xy, origin_xy):
-        return (xy[0] + origin_xy[0], xy[1] + origin_xy[1])
+        return kgeo.offset_xy(xy, origin_xy)
 
     def _get_board_span(self):
         return 2.0 * float(self.r_out)
@@ -550,47 +473,27 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         return self._as_point(px + radial[0] + tangent[0], py + radial[1] + tangent[1])
 
     def _add_silk_segment(self, start_xy, end_xy, width=None, clip_to_outline=False, clip_margin=0.0):
-        if clip_to_outline:
-            clipped = self._clip_segment_to_outline_box(start_xy, end_xy, clip_margin)
-            if clipped is None:
-                return None
-            start_xy, end_xy = clipped
-        seg = pcbnew.PCB_SHAPE(self.board, pcbnew.SHAPE_T_SEGMENT)
-        seg.SetStart(self._as_point(start_xy[0], start_xy[1]))
-        seg.SetEnd(self._as_point(end_xy[0], end_xy[1]))
-        seg.SetLayer(pcbnew.F_SilkS)
-        seg.SetWidth(int(width if width is not None else max(1, 0.127 * self.SCALE)))
-        self.board.Add(seg)
-        return seg
+        bounds = self._get_outline_bounds() if clip_to_outline and self.n_edges == 4 else None
+        return kkicad.add_silk_segment(
+            self.board,
+            start_xy,
+            end_xy,
+            self.fpoint,
+            self.SCALE,
+            width=width,
+            clip_to_outline=clip_to_outline and bounds is not None,
+            clip_margin=clip_margin,
+            bounds=bounds,
+        )
 
     def _add_silk_circle(self, radius, width=None):
         return self._add_silk_circle_at((0.0, 0.0), radius, width)
 
     def _add_silk_circle_at(self, center_xy, radius, width=None):
-        circle = pcbnew.PCB_SHAPE(self.board)
-        circle.SetShape(pcbnew.SHAPE_T_CIRCLE)
-        circle.SetFilled(False)
-        cx, cy = center_xy
-        circle.SetStart(self._as_point(cx, cy))
-        circle.SetEnd(self._as_point(cx + radius, cy))
-        circle.SetCenter(self._as_point(cx, cy))
-        circle.SetLayer(pcbnew.F_SilkS)
-        circle.SetWidth(int(width if width is not None else max(1, 0.127 * self.SCALE)))
-        self.board.Add(circle)
-        return circle
+        return kkicad.add_silk_circle(self.board, center_xy, radius, self.fpoint, self.SCALE, width=width)
 
     def _add_edge_cuts_circle_at(self, center_xy, radius, width=None):
-        circle = pcbnew.PCB_SHAPE(self.board)
-        circle.SetShape(pcbnew.SHAPE_T_CIRCLE)
-        circle.SetFilled(False)
-        cx, cy = center_xy
-        circle.SetStart(self._as_point(cx, cy))
-        circle.SetEnd(self._as_point(cx + radius, cy))
-        circle.SetCenter(self._as_point(cx, cy))
-        circle.SetLayer(pcbnew.Edge_Cuts)
-        circle.SetWidth(int(width if width is not None else max(1, 0.09 * self.SCALE)))
-        self.board.Add(circle)
-        return circle
+        return kkicad.add_edge_cuts_circle(self.board, center_xy, radius, self.fpoint, self.SCALE, width=width)
 
     def _clear_generated_corner_holes(self):
         for fp in list(self.board.GetFootprints()):
@@ -599,72 +502,30 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                 self.board.RemoveNative(fp)
 
     def _add_npth_hole_at(self, center_xy, radius, index):
-        fp = pcbnew.FOOTPRINT(self.board)
-        fp.SetReference(f"KMH_{index}")
-        fp.SetValue("")
-        fp.SetPosition(self._as_point(0, 0))
-        if hasattr(fp, "Reference"):
-            try:
-                fp.Reference().SetVisible(False)
-            except Exception:
-                pass
-        if hasattr(fp, "Value"):
-            try:
-                fp.Value().SetVisible(False)
-            except Exception:
-                pass
-
-        pad = pcbnew.PAD(fp)
-        dia = int(max(2.0 * radius, 1))
-        pad.SetAttribute(pcbnew.PAD_ATTRIB_NPTH)
-        pad.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
-        pad.SetDrillSize(self.fsize(dia, dia))
-        pad.SetSize(self.fsize(dia, dia))
-        pad.SetPosition(self._as_point(center_xy[0], center_xy[1]))
-        try:
-            pad.SetLayerSet(pcbnew.LSET.AllCuMask())
-        except Exception:
-            pass
-        fp.Add(pad)
-        self.board.Add(fp)
-        return fp
+        return kkicad.add_npth_hole(self.board, center_xy, radius, index, self.fpoint, self.fsize)
 
     def _add_silk_arc_ticks(self, radius, angle_start, angle_end, step_deg=1.0, tick_inner=0.8, tick_outer=0.0, major_step=5):
-        angle = angle_start
-        while angle <= angle_end + 1e-9:
-            deg = int(round(math.degrees(angle)))
-            tick_len = tick_inner * self.SCALE
-            if deg % 10 == 0:
-                tick_len *= 3.2
-            elif major_step and deg % major_step == 0:
-                tick_len *= 2.0
-            r0 = radius - tick_len
-            r1 = radius + (tick_outer * self.SCALE)
-            a = angle
-            p0 = (r0 * math.cos(a), r0 * math.sin(a))
-            p1 = (r1 * math.cos(a), r1 * math.sin(a))
-            self._add_silk_segment(p0, p1)
-            angle += math.radians(step_deg)
+        return kkicad.add_silk_arc_ticks(
+            self._add_silk_segment,
+            self.SCALE,
+            radius,
+            angle_start,
+            angle_end,
+            step_deg=step_deg,
+            tick_inner=tick_inner,
+            tick_outer=tick_outer,
+            major_step=major_step,
+        )
 
     def _add_local_tick_fan(self, center_xy, base_angle, fan_deg=18.0, radius_mm=3.0):
-        cx, cy = center_xy
-        radius = radius_mm * self.SCALE
-        start = math.radians(-fan_deg)
-        end = math.radians(fan_deg)
-        angle = start
-        while angle <= end + 1e-9:
-            deg = int(round(abs(math.degrees(angle))))
-            if deg % 10 == 0:
-                tick = 1.2 * self.SCALE
-            elif deg % 5 == 0:
-                tick = 0.8 * self.SCALE
-            else:
-                tick = 0.45 * self.SCALE
-            local_angle = base_angle + angle
-            p0 = (cx + (radius - tick) * math.cos(local_angle), cy + (radius - tick) * math.sin(local_angle))
-            p1 = (cx + radius * math.cos(local_angle), cy + radius * math.sin(local_angle))
-            self._add_silk_segment(p0, p1)
-            angle += math.radians(1.0)
+        return kkicad.add_local_tick_fan(
+            self._add_silk_segment,
+            self.SCALE,
+            center_xy,
+            base_angle,
+            fan_deg=fan_deg,
+            radius_mm=radius_mm,
+        )
 
     def _add_linear_hole_scale(self, center_xy, radial_angle, hole_radius):
         cx, cy = center_xy
@@ -743,65 +604,22 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         )
 
     def _iter_outer_mount_points(self):
-        if self.n_edges == 4 and self.corner_hole_offset > 0:
-            corners = self._get_outline_corners()
-            if corners and len(corners) >= 4:
-                xs = [p[0] for p in corners]
-                ys = [p[1] for p in corners]
-                max_x = max(xs)
-                max_y = max(ys)
-                off = float(self.corner_hole_offset)
-                dia = max(float(self.corner_hole_dia), 0.0)
-                d = off / math.sqrt(2.0)
-                points = [
-                    ( max_x - d,  max_y - d, math.radians(45.0), dia),
-                    (-max_x + d,  max_y - d, math.radians(135.0), dia),
-                    (-max_x + d, -max_y + d, math.radians(225.0), dia),
-                    ( max_x - d, -max_y + d, math.radians(315.0), dia),
-                ]
-                return points[:max(0, min(len(points), int(self.corner_hole_count)))]
-        if self.n_mh_out <= 0 or self.r_mh_out <= 0:
-            return []
-        radius = float(self.r_mh_out)
-        if self.n_edges > 0:
-            radius /= max(math.cos(math.pi / self.n_edges), 1e-6)
-        th0 = 2 * math.pi / self.n_mh_out
-        points = []
-        for idx in range(self.n_mh_out):
-            angle = th0 * idx + th0 / 2.0
-            points.append((radius * math.cos(angle), radius * math.sin(angle), angle, max(float(self.corner_hole_dia), 3.2 * self.SCALE)))
-        return points
+        return kkicad.iter_outer_mount_points(
+            self.n_edges,
+            self.corner_hole_offset,
+            self.corner_hole_dia,
+            self.corner_hole_count,
+            self._get_outline_corners(),
+            self.n_mh_out,
+            self.r_mh_out,
+            self.SCALE,
+        )
 
     def _add_silk_cross_guides(self, radius):
-        corners = self._get_outline_corners()
-        if corners and len(corners) >= 4:
-            xs = [p[0] for p in corners]
-            ys = [p[1] for p in corners]
-            self._add_silk_segment((min(xs), 0.0), (max(xs), 0.0))
-            self._add_silk_segment((0.0, min(ys)), (0.0, max(ys)))
-            self._add_silk_segment(corners[0], corners[2])
-            self._add_silk_segment(corners[1], corners[3])
-            return
-        guide_r = radius
-        self._add_silk_segment((-guide_r, 0.0), (guide_r, 0.0))
-        self._add_silk_segment((0.0, -guide_r), (0.0, guide_r))
-        diag = guide_r / math.sqrt(2.0)
-        self._add_silk_segment((-diag, -diag), (diag, diag))
-        self._add_silk_segment((-diag, diag), (diag, -diag))
+        return kkicad.add_silk_cross_guides(self._add_silk_segment, self._get_outline_corners(), radius)
 
     def _add_silk_slot_frames(self, ri, ro):
-        inner_r = ri
-        outer_r = ro
-        half_slot = math.pi / max(self.n_slots, 1)
-        for idx in range(self.n_slots):
-            a0 = idx * (2 * math.pi / self.n_slots) - half_slot
-            a1 = idx * (2 * math.pi / self.n_slots) + half_slot
-            p00 = (inner_r * math.cos(a0), inner_r * math.sin(a0))
-            p01 = (outer_r * math.cos(a0), outer_r * math.sin(a0))
-            p10 = (inner_r * math.cos(a1), inner_r * math.sin(a1))
-            p11 = (outer_r * math.cos(a1), outer_r * math.sin(a1))
-            self._add_silk_segment(p00, p01)
-            self._add_silk_segment(p10, p11)
+        return kkicad.add_silk_slot_frames(self._add_silk_segment, self.n_slots, ri, ro)
 
     def _add_silk_hole_scales(self):
         self._clear_generated_corner_holes()
@@ -809,67 +627,48 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             self._add_linear_hole_scale((x, y), angle, max(dia * 0.5, 0.5 * self.SCALE))
 
     def _add_silk_text(self, text, pos_xy, size_scale=1.0, align="right"):
-        txt = pcbnew.PCB_TEXT(self.board)
-        txt.SetText(text)
-        size = int(max(self.txt_size * size_scale, 0.4 * self.SCALE))
-        txt.SetTextSize(self.fsize(size, size))
-        txt.SetPosition(self._as_point(pos_xy[0], pos_xy[1]))
-        if hasattr(txt, "SetHorizJustify"):
-            if align == "left":
-                txt.SetHorizJustify(pcbnew.GR_TEXT_H_ALIGN_LEFT)
-            else:
-                txt.SetHorizJustify(pcbnew.GR_TEXT_H_ALIGN_RIGHT)
-        txt.SetLayer(pcbnew.F_SilkS)
-        self.board.Add(txt)
-        return txt
+        return kkicad.add_silk_text(
+            self.board,
+            text,
+            pos_xy,
+            self.fpoint,
+            self.fsize,
+            self.txt_size,
+            self.SCALE,
+            size_scale=size_scale,
+            align=align,
+        )
 
     def _add_grouped_silk_segment(self, group, start_xy, end_xy, width=None):
         return self._add_grouped_segment(group, start_xy, end_xy, pcbnew.F_SilkS, width if width is not None else max(1, 0.127 * self.SCALE))
 
     def _add_grouped_segment(self, group, start_xy, end_xy, layer, width):
-        seg = pcbnew.PCB_SHAPE(self.board, pcbnew.SHAPE_T_SEGMENT)
-        seg.SetStart(self._as_point(start_xy[0], start_xy[1]))
-        seg.SetEnd(self._as_point(end_xy[0], end_xy[1]))
-        seg.SetLayer(layer)
-        seg.SetWidth(int(width))
-        self.board.Add(seg)
-        if group is not None:
-            group.AddItem(seg)
-        return seg
+        return kkicad.add_grouped_segment(self.board, group, start_xy, end_xy, layer, width, self.fpoint)
 
     def _add_grouped_silk_circle(self, group, center_xy, radius, width=None):
         return self._add_grouped_circle(group, center_xy, radius, pcbnew.F_SilkS, width if width is not None else max(1, 0.127 * self.SCALE))
 
     def _add_grouped_circle(self, group, center_xy, radius, layer, width):
-        circle = pcbnew.PCB_SHAPE(self.board)
-        circle.SetShape(pcbnew.SHAPE_T_CIRCLE)
-        circle.SetFilled(False)
-        circle.SetStart(self._as_point(center_xy[0], center_xy[1]))
-        circle.SetEnd(self._as_point(center_xy[0] + radius, center_xy[1]))
-        circle.SetCenter(self._as_point(center_xy[0], center_xy[1]))
-        circle.SetLayer(layer)
-        circle.SetWidth(int(width))
-        self.board.Add(circle)
-        if group is not None:
-            group.AddItem(circle)
-        return circle
+        return kkicad.add_grouped_circle(self.board, group, center_xy, radius, layer, width, self.fpoint)
 
     def _add_grouped_edge_circle(self, group, center_xy, radius, width=None):
         return self._add_grouped_circle(group, center_xy, radius, pcbnew.Edge_Cuts, width if width is not None else max(1, 0.09 * self.SCALE))
 
     def _get_magnet_aux_layer(self):
-        return getattr(pcbnew, "Dwgs_User", pcbnew.F_SilkS)
+        return kkicad.get_magnet_aux_layer()
 
     def _add_grouped_rect_outline(self, group, center_xy, half_w, half_h, angle, layer, width):
-        tang = np.array([-math.sin(angle), math.cos(angle)])
-        rad = np.array([math.cos(angle), math.sin(angle)])
-        pts = []
-        for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
-            p = np.array(center_xy) + tang * (sx * half_w) + rad * (sy * half_h)
-            pts.append((p[0], p[1]))
-        for i in range(4):
-            self._add_grouped_segment(group, pts[i], pts[(i + 1) % 4], layer, width)
-        return pts
+        return kkicad.add_grouped_rect_outline(
+            self.board,
+            group,
+            center_xy,
+            half_w,
+            half_h,
+            angle,
+            layer,
+            width,
+            self.fpoint,
+        )
 
     def get_parameters(self):
         self.outline = self.m_cbOutline.GetStringSelection()
@@ -1364,68 +1163,34 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
         return 1, "Radial"
 
     def _clear_magnet_group(self):
-        if getattr(self, "magnet_group", None):
-            items = []
-            try:
-                items = list(self.magnet_group.GetItems())
-            except Exception:
-                items = []
-            for item in items:
-                try:
-                    self.board.RemoveNative(item)
-                except Exception:
-                    try:
-                        self.board.Remove(item)
-                    except Exception:
-                        pass
-            try:
-                self.magnet_group.RemoveAll()
-            except Exception:
-                pass
-            try:
-                self.board.Remove(self.magnet_group)
-            except Exception:
-                pass
-            self.magnet_group = None
+        self.magnet_group = kkicad.clear_magnet_group(self.board, getattr(self, 'magnet_group', None))
 
     def _create_magnet_group(self):
         self._clear_magnet_group()
-        self.magnet_group = pcbnew.PCB_GROUP(self.board)
-        self.magnet_group.SetName("magnet_pcb")
-        self.board.Add(self.magnet_group)
+        self.magnet_group = kkicad.create_magnet_group(self.board, name='magnet_pcb')
         return self.magnet_group
 
     def _add_mounting_hole_fp_at(self, group, center_xy, fp_lib, fp_name, ref, net=None):
-        m = pcbnew.FootprintLoad(fp_lib, fp_name)
-        if m is None:
-            return None
-        m.Reference().SetVisible(False)
-        m.Value().SetVisible(False)
-        m.SetReference(ref)
-        m.SetPosition(self._as_point(center_xy[0], center_xy[1]))
-        if net is not None:
-            for pad in m.Pads():
-                pad.SetNet(net)
-        self.board.Add(m)
-        if group is not None:
-            group.AddItem(m)
-        return m
+        return kkicad.add_mounting_hole_fp_at(
+            self.board,
+            group,
+            center_xy,
+            fp_lib,
+            fp_name,
+            ref,
+            self.fpoint,
+            net=net,
+        )
 
     def _iter_corner_points_for_origin(self, origin_xy):
-        if self.n_edges == 4 and self.corner_hole_offset > 0:
-            max_x = float(self.r_out)
-            max_y = float(self.r_out)
-            off = float(self.corner_hole_offset)
-            dia = max(float(self.corner_hole_dia), 0.0)
-            d = off / math.sqrt(2.0)
-            pts = [
-                ( origin_xy[0] + max_x - d, origin_xy[1] + max_y - d, math.radians(45.0), dia),
-                ( origin_xy[0] - max_x + d, origin_xy[1] + max_y - d, math.radians(135.0), dia),
-                ( origin_xy[0] - max_x + d, origin_xy[1] - max_y + d, math.radians(225.0), dia),
-                ( origin_xy[0] + max_x - d, origin_xy[1] - max_y + d, math.radians(315.0), dia),
-            ]
-            return pts[:max(0, min(len(pts), int(self.corner_hole_count)))]
-        return []
+        return kkicad.iter_corner_points_for_origin(
+            self.n_edges,
+            self.corner_hole_offset,
+            self.corner_hole_dia,
+            self.corner_hole_count,
+            self.r_out,
+            origin_xy,
+        )
 
     def _add_linear_hole_scale_at(self, group, center_xy, radial_angle, hole_radius, origin_xy):
         cx, cy = center_xy

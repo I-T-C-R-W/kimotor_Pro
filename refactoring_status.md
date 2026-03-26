@@ -1,5 +1,23 @@
 # KMotor_Pro Refactoring Status
 
+## Latest Local Progress (2026-03-26)
+
+- Plugin bootstrap in `kmotor_pro/__init__.py` now goes through `kmotor_api.py` again.
+- `kmotor_api.py` launches `KMotorProDialog` from `kmotor_pro_action.py`, removing the broken `kmotor_gui` reference.
+- `kmotor_pro_action.py` now delegates an initial geometry/helper block to `kmotor_geometry.py`:
+  - `_point_xy`, `_radial_vector`, `_tangent_vector`, `_point_radius`
+  - outline/routing helpers such as `_get_outline_outer_radius`, `_get_outline_corners`, `_clip_segment_to_outline_box`, `_rotate_xy`, `_rotate_about_xy`, `_offset_xy`
+- `kmotor_pro_action.py` now delegates an initial KiCad helper block to `kmotor_kicad.py`:
+  - `_item_token`, `_tag_generated_zone`, `_is_generated_zone`, `_cleanup_generated_zones`
+  - `_add_silk_segment`, `_add_silk_circle_at`, `_add_edge_cuts_circle_at`, `_add_npth_hole_at`, `_add_silk_text`
+  - grouped rendering helpers `_add_grouped_segment`, `_add_grouped_circle`, `_add_grouped_rect_outline`
+  - magnet-group helpers `_get_magnet_aux_layer`, `_clear_magnet_group`, `_create_magnet_group`, `_add_mounting_hole_fp_at`
+- Validation so far: `python3 -m py_compile` passes for the touched modules.
+- Additional KiCad delegation completed on 2026-03-26:
+  - `_add_silk_arc_ticks`, `_add_local_tick_fan`, `_iter_outer_mount_points`
+  - `_add_silk_cross_guides`, `_add_silk_slot_frames`, `_iter_corner_points_for_origin`
+- Recommended next step: continue with the remaining KiCad helper cluster in `kmotor_pro_action.py` (`_add_linear_hole_scale`, `_add_linear_hole_scale_at`, `_build_offset_outline`, `_build_offset_mounting_holes`, `_build_magnet_markers`), then move to GUI extraction following `masterplan.md`.
+
 ## Anti-Loop Rules (Established)
 1. **Vor jedem Befehl prüfen**: "Habe ich das in den letzten 3 Nachrichten schon gemacht?"
 2. **Sofort dokumentieren**: Nach jedem Schritt direkt notieren was gemacht wurde
