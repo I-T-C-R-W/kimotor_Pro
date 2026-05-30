@@ -1,3 +1,4 @@
+<img width="3012" height="3741" alt="20260530_205951" src="https://github.com/user-attachments/assets/717edc5c-63d8-4691-9c22-a1711a98e4ed" />
 # KMotor_Pro
 
 Current KiCad 9 GPL fork of KiMotor with deterministic PCB motor generation, extended stats, fabrication presets and a second magnet-PCB workflow.
