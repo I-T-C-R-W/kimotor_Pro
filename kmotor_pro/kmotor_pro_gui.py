@@ -1311,6 +1311,8 @@ class KMotorProGUI ( wx.Frame ):
 		self.Layout()
 
 		self.Centre( wx.BOTH )
+		wx.CallAfter(self.Refresh)
+		wx.CallAfter(self.Update)
 
 		# Connect Events
 		self.Bind( wx.EVT_CLOSE, self.on_close )
