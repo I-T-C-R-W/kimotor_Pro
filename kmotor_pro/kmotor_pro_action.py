@@ -1498,24 +1498,32 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                 fp_keys = [
                     f"KICAD{self.KICAD_VERSION}_FOOTPRINT_DIR",
                     "KICAD_FOOTPRINT_DIR",
-                    "KICAD6_FOOTPRINT_DIR",
                 ]
                 for key in fp_keys:
                     if env_vars.get(key):
                         self.fp_path = env_vars[key]
                         break
         except IOError:
-            wx.LogError("Settings file not found.")
-            return
+            pass
 
         if self.fp_path is None:
             for key in (
                 f"KICAD{self.KICAD_VERSION}_FOOTPRINT_DIR",
                 "KICAD_FOOTPRINT_DIR",
-                "KICAD6_FOOTPRINT_DIR",
             ):
                 self.fp_path = os.getenv(key, default=None)
                 if self.fp_path:
+                    break
+
+        if self.fp_path is None:
+            system_paths = [
+                f"/usr/share/kicad/footprints",
+                f"/usr/local/share/kicad/footprints",
+                f"/opt/kicad/share/kicad/footprints",
+            ]
+            for p in system_paths:
+                if os.path.isdir(p):
+                    self.fp_path = p
                     break
 
         if self.fp_path is not None:
