@@ -1017,18 +1017,18 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
 
         radius = self.magnet_ring_dia * 0.5
         circumference = 2.0 * math.pi * radius
-        required_arc = self.magnet_poles * max(magnet_span + self.magnet_gap + self.magnet_keepout, 0.0)
+        pitch_needed = magnet_span + self.magnet_gap + self.magnet_keepout
+        required_arc = self.magnet_poles * max(pitch_needed, 0.0)
         pole_pitch_arc = circumference / max(self.magnet_poles, 1)
-        if required_arc > circumference:
+        if required_arc > circumference or pitch_needed > pole_pitch_arc:
+            max_poles = int(circumference / max(pitch_needed, 1.0))
+            max_pole_pairs = max(1, max_poles // 2)
+            min_dia = (self.magnet_poles * pitch_needed) / math.pi
             errors.append(
-                "Magnets do not fit on the selected ring diameter. "
-                f"Required arc {required_arc / self.SCALE:.2f} mm > circumference {circumference / self.SCALE:.2f} mm."
-            )
-        if (magnet_span + self.magnet_gap + self.magnet_keepout) > pole_pitch_arc:
-            errors.append(
-                "Single magnet pitch is too large for the selected pole count. "
-                f"Needed { (magnet_span + self.magnet_gap + self.magnet_keepout) / self.SCALE:.2f} mm > "
-                f"available { pole_pitch_arc / self.SCALE:.2f} mm."
+                "Magnets do not fit. "
+                f"Required arc {required_arc / self.SCALE:.2f} mm > circumference {circumference / self.SCALE:.2f} mm. "
+                f"Fix: reduce Pole pairs to ≤ {max_pole_pairs} "
+                f"or increase Ring dia to ≥ {min_dia / self.SCALE:.1f} mm."
             )
 
         inner_edge = radius - (0.5 * radial_span) - self.magnet_keepout

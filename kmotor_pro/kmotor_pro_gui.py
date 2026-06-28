@@ -1204,7 +1204,7 @@ class KMotorProGUI ( wx.Frame ):
 		self.lbl_magPolePairs.Wrap( -1 )
 		bSizerMagPolePairs.Add( self.lbl_magPolePairs, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
 		bSizerMagPolePairs.Add( ( 0, 0 ), 1, wx.EXPAND, 5 )
-		self.m_ctrlMagPolePairs = SpinCtrlDoublePersist( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 1, 500, 30, 1, u"m_ctrlMagPolePairs" )
+		self.m_ctrlMagPolePairs = SpinCtrlDoublePersist( sbSizerMagnet.GetStaticBox(), wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_LEFT|wx.SP_ARROW_KEYS, 1, 500, 4, 1, u"m_ctrlMagPolePairs" )
 		self.m_ctrlMagPolePairs.SetDigits( 0 )
 		bSizerMagPolePairs.Add( self.m_ctrlMagPolePairs, 1, wx.ALL|wx.EXPAND, 5 )
 		sbMagPlacement.Add( bSizerMagPolePairs, 0, wx.EXPAND, 5 )
