@@ -184,10 +184,16 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             self.fpoint_vector = pcbnew.VECTOR_VECTOR2I
             self.fsize = pcbnew.VECTOR2I
 
-        self.pf = os.path.join(
-            pcbnew.SETTINGS_MANAGER.GetUserSettingsPath(),
-            "kmotor_pro.cfg"
-        )
+        board_file = self.board.GetFileName() if self.board else ""
+        if board_file:
+            board_dir = os.path.dirname(os.path.abspath(board_file))
+            board_stem = os.path.splitext(os.path.basename(board_file))[0]
+            self.pf = os.path.join(board_dir, board_stem + ".kmotor_pro.cfg")
+        else:
+            self.pf = os.path.join(
+                pcbnew.SETTINGS_MANAGER.GetUserSettingsPath(),
+                "kmotor_pro.cfg"
+            )
 
         self.init_persist(self.pf)
         self.init_path()
