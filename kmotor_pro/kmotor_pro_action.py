@@ -184,10 +184,16 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
             self.fpoint_vector = pcbnew.VECTOR_VECTOR2I
             self.fsize = pcbnew.VECTOR2I
 
-        self.pf = os.path.join(
-            pcbnew.SETTINGS_MANAGER.GetUserSettingsPath(),
-            "kmotor_pro.cfg"
-        )
+        board_file = self.board.GetFileName() if self.board else ""
+        if board_file:
+            board_dir = os.path.dirname(os.path.abspath(board_file))
+            board_stem = os.path.splitext(os.path.basename(board_file))[0]
+            self.pf = os.path.join(board_dir, board_stem + ".kmotor_pro.cfg")
+        else:
+            self.pf = os.path.join(
+                pcbnew.SETTINGS_MANAGER.GetUserSettingsPath(),
+                "kmotor_pro.cfg"
+            )
 
         self.init_persist(self.pf)
         self.init_path()
@@ -1017,18 +1023,18 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
 
         radius = self.magnet_ring_dia * 0.5
         circumference = 2.0 * math.pi * radius
-        required_arc = self.magnet_poles * max(magnet_span + self.magnet_gap + self.magnet_keepout, 0.0)
+        pitch_needed = magnet_span + self.magnet_gap + self.magnet_keepout
+        required_arc = self.magnet_poles * max(pitch_needed, 0.0)
         pole_pitch_arc = circumference / max(self.magnet_poles, 1)
-        if required_arc > circumference:
+        if required_arc > circumference or pitch_needed > pole_pitch_arc:
+            max_poles = int(circumference / max(pitch_needed, 1.0))
+            max_pole_pairs = max(1, max_poles // 2)
+            min_dia = (self.magnet_poles * pitch_needed) / math.pi
             errors.append(
-                "Magnets do not fit on the selected ring diameter. "
-                f"Required arc {required_arc / self.SCALE:.2f} mm > circumference {circumference / self.SCALE:.2f} mm."
-            )
-        if (magnet_span + self.magnet_gap + self.magnet_keepout) > pole_pitch_arc:
-            errors.append(
-                "Single magnet pitch is too large for the selected pole count. "
-                f"Needed { (magnet_span + self.magnet_gap + self.magnet_keepout) / self.SCALE:.2f} mm > "
-                f"available { pole_pitch_arc / self.SCALE:.2f} mm."
+                "Magnets do not fit. "
+                f"Required arc {required_arc / self.SCALE:.2f} mm > circumference {circumference / self.SCALE:.2f} mm. "
+                f"Fix: reduce Pole pairs to ≤ {max_pole_pairs} "
+                f"or increase Ring dia to ≥ {min_dia / self.SCALE:.1f} mm."
             )
 
         inner_edge = radius - (0.5 * radial_span) - self.magnet_keepout
@@ -1498,24 +1504,32 @@ class KMotorProDialog ( kmotor_pro_gui.KMotorProGUI ):
                 fp_keys = [
                     f"KICAD{self.KICAD_VERSION}_FOOTPRINT_DIR",
                     "KICAD_FOOTPRINT_DIR",
-                    "KICAD6_FOOTPRINT_DIR",
                 ]
                 for key in fp_keys:
                     if env_vars.get(key):
                         self.fp_path = env_vars[key]
                         break
         except IOError:
-            wx.LogError("Settings file not found.")
-            return
+            pass
 
         if self.fp_path is None:
             for key in (
                 f"KICAD{self.KICAD_VERSION}_FOOTPRINT_DIR",
                 "KICAD_FOOTPRINT_DIR",
-                "KICAD6_FOOTPRINT_DIR",
             ):
                 self.fp_path = os.getenv(key, default=None)
                 if self.fp_path:
+                    break
+
+        if self.fp_path is None:
+            system_paths = [
+                f"/usr/share/kicad/footprints",
+                f"/usr/local/share/kicad/footprints",
+                f"/opt/kicad/share/kicad/footprints",
+            ]
+            for p in system_paths:
+                if os.path.isdir(p):
+                    self.fp_path = p
                     break
 
         if self.fp_path is not None:

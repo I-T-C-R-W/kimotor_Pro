@@ -57,10 +57,14 @@ version = data["release"]["version"]
 status = data["release"]["status"]
 description = data["description"]
 description_full = (
-    "KMotor_Pro is a GPL-2.0-only KiCad 9 fork of KiMotor with "
+    "KMotor_Pro is a GPL-2.0-only KiCad fork of KiMotor with "
     "deterministic routing, resistance stats, corner alignment helpers "
     "and safer geometry handling for PCB motor generation."
 )
+
+kicad_min = data["compatibility"]["kicad"]["min"].rsplit(".", 1)[0]
+kicad_max_raw = data["compatibility"]["kicad"]["max"]
+kicad_max = kicad_max_raw.replace(".x", ".99") if ".x" in kicad_max_raw else kicad_max_raw
 
 archive_metadata = {
     "$schema": "https://go.kicad.org/pcm/schemas/v1",
@@ -89,8 +93,8 @@ archive_metadata = {
         {
             "version": version,
             "status": status,
-            "kicad_version": "9.0",
-            "kicad_version_max": "9.99",
+            "kicad_version": kicad_min,
+            "kicad_version_max": kicad_max,
             "runtime": "swig"
         }
     ]

@@ -108,7 +108,7 @@ class PeripheralsConfig:
 # --- MASTER CONFIG (Das aggregierte JSON Objekt) ---
 @dataclass
 class MotorInputConfig:
-    version: str = "1.5"
+    version: str = "1.5.0"
     topology: TopologyConfig = field(default_factory=TopologyConfig)
     mechanics: StatorMechanicsConfig = field(default_factory=StatorMechanicsConfig)
     coil: CoilLayoutConfig = field(default_factory=CoilLayoutConfig)

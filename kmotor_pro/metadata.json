@@ -28,17 +28,17 @@
   "compatibility": {
     "kicad": {
       "min": "9.0.0",
-      "max": "9.x"
+      "max": "10.x"
     },
     "python": "3.x"
   },
   "release": {
-    "version": "1.4.1",
+    "version": "1.5.0",
     "channel": "stable",
     "status": "stable",
     "notes": [
-      "Bugfix release for the KMotor_Pro KiCad 9 stable branch.",
-      "Stabilizes periodic and multi-loop center-via placement in generated coil geometry.",
+      "KiCad 10 compatibility release.",
+      "Adds KiCad 10 support with system footprint path fallback.",
       "Keeps the existing Magnet PCB workflow, winding mode stats and fabrication presets."
     ]
   }
